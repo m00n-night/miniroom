@@ -235,6 +235,9 @@
         border: 2px solid var(--line);
         border-radius: 3px;
       }
+      .dye-palette { gap: 5px; }
+      .dye-palette button:not(.reset) { width: 29px; height: 29px; min-height: 29px; }
+      .dye-palette span { flex-basis: 100%; }
       .cols .reset {
         width: auto;
         padding: 0 10px;
@@ -548,7 +551,7 @@
           </div>
         </div>
         <p class="keys">
-          단축키: 오른쪽 클릭·Esc 그만 놓기/선택 해제 · Shift+클릭 여러 개 놓기 · R 돌리기 · 화살표 이동 · L 불 · Delete 치우기 · Ctrl+Z
+          연결형 가구는 같은 계열·방향·바닥 높이에서 맞닿거나 일부 겹치면 자동 연결됩니다. · 단축키: 오른쪽 클릭·Esc 그만 놓기/선택 해제 · Shift+클릭 여러 개 놓기 · R 돌리기 · 화살표 이동 · L 불 · Delete 치우기 · Ctrl+Z
           되돌리기 · 1/2 층 바꾸기 · +/− 또는 Ctrl+휠 확대·축소 · 확대했을 땐 빈 곳을 끌어 둘러보기
         </p>
       </section>
@@ -1466,7 +1469,7 @@
             const r = Math.hypot((x / b.w - 0.5) * 2, (y / b.d - 1) * 1.6);
             if (r > 1 || r < 0.35) return null;
             const i = Math.min(5, Math.floor(((1 - r) / 0.65) * 6));
-            return i === 0 ? b.c : RB[i];
+            return RB[i];
           },
           mat: (x, y, z, f, b) => {
             if (f !== "T") return null;
@@ -2132,22 +2135,6 @@
             return Math.abs(gx - Math.round(gx)) * s < 0.3 || Math.abs(gy - Math.round(gy)) * s < 0.3 ? hex("#3a2418") : b.c;
           },
           feltT: (x, y, z, f, b) => (f !== "T" ? mul(b.c, 0.8) : H3((x * 2) | 0, (y * 2) | 0, 3) % 13 === 0 ? mul(b.c, 0.92) : b.c),
-          pitchT: (x, y, z, f, b) => {
-            if (f !== "T") return b.c;
-            const L = 0.4,
-              cx = b.w / 2,
-              cy = b.d / 2;
-            if (
-              Math.abs(x - 1) < L ||
-              Math.abs(x - b.w + 1) < L ||
-              Math.abs(y - 1) < L ||
-              Math.abs(y - b.d + 1) < L ||
-              Math.abs(x - cx) < L ||
-              Math.abs(Math.hypot(x - cx, y - cy) - 3) < L
-            )
-              return K.white;
-            return Math.floor(x / 3.5) % 2 ? lerp(b.c, K.white, 0.12) : b.c;
-          },
           // 마작패: 윗면은 패 뒷면 색, 옆면은 상아색·뒷면 색 두 겹
           mjWall: (x, y, z, f, b) => {
             const along = b.w >= b.d ? x : y,
@@ -2213,7 +2200,8 @@
               j = Math.floor(z / 16);
             if (cx < 1.2 || cx > 14.8 || cz < 1.2 || cz > 14.8) return b.c;
             if ((i + j) % 2 === 0) {
-              const c = K.bk[(i * 2 + j * 3 + 1) % 7];
+              const jx = (i * 2 + j * 3 + 1) % 7;
+              const c = b.palK ? hex(b.palK[jx % b.palK.length]) : K.bk[jx];
               return cz < 12 && cx > 2.2 && cx < 13.8
                 ? cz > 10
                   ? mul(c, 0.8)
@@ -2441,20 +2429,9 @@
         const rb = (t, w, d) => (on, it) => [B(0, 0, 0, ((it && it.rw) || w) * 16, ((it && it.rd) || d) * 16, 1, "A", { t })];
 
         // ── 물건 목록 (가구·조명·소품·반려동물) ──
-        const BPALS = {
-          basic: { n: "기본", c: ["#ff6b8b", "#6fa2e8", "#ffe28a"] },
-          pastel: { n: "파스텔", c: ["#ffb0c4", "#b0d8ff", "#fff0a8"] },
-          vivid: { n: "선명한", c: ["#e83a4a", "#5fc46c", "#5b8fd8"] },
-          sunset: { n: "노을", c: ["#ff8a3a", "#ffcf3a", "#ff6b8b"] },
-          ocean: { n: "바다", c: ["#4f7cc4", "#7fd0ff", "#f4f8fa"] },
-          mint: { n: "민트", c: ["#6fc0a8", "#c8f0e0", "#ffffff"] },
-          purple: { n: "보라", c: ["#9a6fc4", "#e0b0ff", "#ffd0f0"] },
-          love: { n: "하트", c: ["#e83a4a", "#ff9ab0", "#ffffff"] },
-          forest: { n: "숲", c: ["#3d8a4a", "#8fd07a", "#e8c070"] },
-          gold: { n: "골드", c: ["#d9a840", "#f4efe6", "#ffe28a"] },
-          mono: { n: "흑백", c: ["#3a3a44", "#f4efe6", "#9a9aa2"] },
-          rainbow: { n: "무지개", c: ["#e83a4a", "#ffcf3a", "#5b8fd8"] },
-        };
+        const BPALS = {"vintage":{"n":"앤틱 서재","c":["#813f51","#536c89","#d1a35d"]},"pastel":{"n":"봄의 사탕","c":["#f2b4cb","#a4cfc4","#b8b3e4"]},"warm":{"n":"햇살과 도자기","c":["#c77452","#f3d397","#498f90"]},"forest":{"n":"숲속 꽃집","c":["#536f48","#c78d9c","#e4d3a0"]},"ocean":{"n":"해변의 오후","c":["#416e9c","#e28b72","#84c4c5"]},"purple":{"n":"별빛 극장","c":["#73558c","#d7b66c","#a9bedd"]},"love":{"n":"장미와 민트","c":["#ae4b68","#92b6a5","#f2c2ce"]},"mono":{"n":"흑백과 리넨","c":["#343741","#ede9df","#9398a2"]},"vivid":{"n":"레트로 포스터","c":["#d44c43","#e8bd40","#3d76b4"]},"xmas":{"n":"겨울 축제","c":["#a63e46","#365d50","#e1bd72"]}};
+        const THEME_ALIASES = {"candy":"pastel","rainbow":"vivid","sunset":"warm","cool":"ocean","mint":"forest","gold":"warm"};
+        for (const [old,k] of Object.entries({...THEME_ALIASES,basic:"pastel"})) Object.defineProperty(BPALS,old,{value:BPALS[k],enumerable:false});
         // ── 액자·체스 말·돌 테두리·잔디 러그·앵무새 도우미 ──
         // 벽 액자 하나: 틀 → (매트) → 그림 순서로 조금씩 앞으로 나온다
         const pframe = (x, z, w, h, fc, bg, art, mat) =>
@@ -2476,6 +2453,695 @@
           if (k === 5) r.push(P(-0.15, -0.15, h, 0.3, 0.3, 1.1 * s), P(-0.45, -0.15, h + 0.45 * s, 0.9, 0.3, 0.3 * s));
           return r;
         };
+        // ── 놀이 테이블: 악기처럼 누르면 말·패·공·돌이 움직인다 ──
+        // 상태는 물건 id마다 GAMES에 두고, b(on, it)가 그릴 때마다 TIME으로 움직임을 계산한다
+        const GAMES = new Map();
+        let gameUntil = 0;
+        const gEase = (u) => (u <= 0 ? 0 : u >= 1 ? 1 : u * u * (3 - 2 * u)),
+          gU = (t0, dur) => (RM || !dur ? 1 : Math.max(0, Math.min(1, (TIME - t0) / dur))),
+          gBusy = (ms) => {
+            gameUntil = Math.max(gameUntil, TIME + ms);
+            dirty = 1;
+          },
+          gRand = (a) => a[Math.floor(Math.random() * a.length)];
+        // 나무·상아가 부딪히는 '톡' 소리. dt초 뒤, f는 음높이, v는 세기
+        function knock(dt, f, v) {
+          if (!AC || v < 0.01) return;
+          const t = AC.currentTime + Math.max(0, dt) + 0.005,
+            n = Math.floor(AC.sampleRate * 0.035),
+            buf = AC.createBuffer(1, n, AC.sampleRate),
+            d = buf.getChannelData(0);
+          for (let j = 0; j < n; j++) d[j] = (Math.random() * 2 - 1) * (1 - j / n) ** 4;
+          const s = AC.createBufferSource(),
+            bp = AC.createBiquadFilter(),
+            g = AC.createGain();
+          s.buffer = buf;
+          bp.type = "bandpass";
+          bp.frequency.value = f * 3;
+          bp.Q.value = 1.5;
+          g.gain.value = v;
+          s.connect(bp).connect(g).connect(MASTER);
+          s.start(t);
+          tone("triangle", f, t, 0.002, Math.min(0.9, v * 0.8), 0.08, MASTER);
+        }
+
+        // ── 체스: 흑백이 번갈아 한 수씩. 잡을 수 있으면 대개 잡는다 ──
+        const CHESS = {
+          chess: {
+            o: 0,
+            m: 1.28,
+            s: 1.68,
+            z: 1.2,
+            sc: 0.95,
+            K: [[0, 1, 0], [2, 1, 0], [5, 1, 0], [6, 1, 0], [7, 1, 0], [0, 0, 1], [6, 0, 5], [2, 2, 2], [4, 3, 3]],
+            W: [[0, 6, 0], [1, 6, 0], [5, 6, 0], [6, 6, 0], [7, 6, 0], [7, 7, 1], [6, 7, 5], [3, 4, 4], [5, 5, 2]],
+          },
+          chesstable: {
+            o: 4,
+            m: 1.92,
+            s: 2.52,
+            z: 16.3,
+            sc: 1.45,
+            K: [[0, 1, 0], [1, 1, 0], [5, 1, 0], [6, 1, 0], [7, 1, 0], [0, 0, 1], [4, 0, 5], [2, 2, 2], [5, 2, 3]],
+            W: [[0, 6, 0], [2, 6, 0], [3, 6, 0], [6, 6, 0], [7, 6, 0], [7, 7, 1], [4, 7, 5], [3, 5, 4], [5, 5, 2]],
+          },
+        };
+        const CH_GA = ["폰이", "룩이", "나이트가", "비숍이", "퀸이", "킹이"],
+          CH_EUL = ["폰을", "룩을", "나이트를", "비숍을", "퀸을", "킹을"],
+          CH_VAL = [1, 5, 3, 3, 9, 0],
+          chSq = (i, j) => "abcdefgh"[i] + (8 - j),
+          chCol = (c) => (c === "W" ? "#f8f4ea" : "#2a2a30");
+        const chessNew = (k) => [
+          ...CHESS[k].W.map(([i, j, kk]) => ({ i, j, k: kk, c: "W" })),
+          ...CHESS[k].K.map(([i, j, kk]) => ({ i, j, k: kk, c: "K" })),
+        ];
+        function chessMoves(P, side) {
+          const at = (i, j) => P.find((p) => !p.dead && p.i === i && p.j === j),
+            out = [],
+            ORT = [[1, 0], [-1, 0], [0, 1], [0, -1]],
+            DIA = [[1, 1], [1, -1], [-1, 1], [-1, -1]];
+          for (const p of P) {
+            if (p.dead || p.c !== side) continue;
+            const add = (i, j) => {
+                if (i < 0 || j < 0 || i > 7 || j > 7) return false;
+                const q = at(i, j);
+                if (q) {
+                  if (q.c !== side && q.k !== 5) out.push({ p, i, j, cap: q });
+                  return false;
+                }
+                out.push({ p, i, j });
+                return true;
+              },
+              ray = ([a, b]) => {
+                for (let n = 1; n < 8; n++) if (!add(p.i + a * n, p.j + b * n)) break;
+              };
+            if (p.k === 0) {
+              const dj = side === "W" ? -1 : 1,
+                j1 = p.j + dj;
+              if (j1 >= 0 && j1 <= 7 && !at(p.i, j1)) {
+                out.push({ p, i: p.i, j: j1 });
+                const j2 = p.j + dj * 2;
+                if (p.j === (side === "W" ? 6 : 1) && !at(p.i, j2)) out.push({ p, i: p.i, j: j2 });
+              }
+              for (const dx of [-1, 1]) {
+                const q = at(p.i + dx, j1);
+                if (q && q.c !== side && q.k !== 5) out.push({ p, i: p.i + dx, j: j1, cap: q });
+              }
+            } else if (p.k === 2)
+              for (const [a, b] of [[1, 2], [2, 1], [-1, 2], [-2, 1], [1, -2], [2, -1], [-1, -2], [-2, -1]]) add(p.i + a, p.j + b);
+            else if (p.k === 5) for (const [a, b] of [...ORT, ...DIA]) add(p.i + a, p.j + b);
+            else (p.k === 1 ? ORT : p.k === 3 ? DIA : [...ORT, ...DIA]).forEach(ray);
+          }
+          return out;
+        }
+        const chessB = (key, it) => {
+          const C = CHESS[key],
+            X = (i) => C.o + C.m + (i + 0.5) * C.s,
+            g = it && GAMES.get(it.id),
+            r = [];
+          if (!g) {
+            for (const c of ["K", "W"]) for (const [i, j, k] of C[c]) r.push(...cpiece(X(i), X(j), C.z, k, chCol(c), C.sc));
+            return r;
+          }
+          const mv = g.mv,
+            u = mv ? gU(mv.t0, mv.dur) : 1,
+            e = gEase(u),
+            pop = g.pop != null ? gEase(gU(g.pop, 450)) : 1;
+          for (const p of g.P) {
+            let x = X(p.i),
+              y = X(p.j),
+              z = C.z,
+              s = C.sc * pop,
+              k = p.k;
+            if (p.dead) {
+              // 잡힌 말은 상대가 내려앉을 즈음 작아지며 사라진다
+              if (!(mv && mv.cap === p && u < 1)) continue;
+              s *= 1 - gEase((u - 0.45) / 0.5);
+            }
+            if (mv && mv.p === p && u < 1) {
+              x = X(mv.fi) + (x - X(mv.fi)) * e;
+              y = X(mv.fj) + (y - X(mv.fj)) * e;
+              z += Math.sin(Math.PI * u) * C.s * (p.k === 2 && !mv.prom ? 1.3 : 0.45);
+              if (mv.prom) k = 0;
+            }
+            if (s > 0.06) r.push(...cpiece(x, y, z, k, chCol(p.c), s));
+          }
+          return r;
+        };
+        function chessClick(it) {
+          let g = GAMES.get(it.id);
+          if (g && g.over) {
+            GAMES.set(it.id, { P: chessNew(it.k), side: "W", n: 0, pop: TIME });
+            gBusy(500);
+            knock(0.15, 420, 0.35);
+            msg("♟ 말을 다시 늘어놓았어요. 누르면 백부터 둬요.");
+            return;
+          }
+          if (!g) GAMES.set(it.id, (g = { P: chessNew(it.k), side: "W", n: 0 }));
+          const ms = chessMoves(g.P, g.side);
+          if (!ms.length) {
+            g.over = 1;
+            msg("♟ 둘 수 있는 수가 없어요. 다시 누르면 새 판!");
+            return;
+          }
+          const caps = ms.filter((m) => m.cap).sort((a, b) => CH_VAL[b.cap.k] - CH_VAL[a.cap.k]),
+            m = caps.length && Math.random() < 0.8 ? caps[Math.random() < 0.7 ? 0 : Math.floor(Math.random() * caps.length)] : gRand(ms),
+            p = m.p,
+            fi = p.i,
+            fj = p.j,
+            nm = p.k,
+            sd = g.side === "W" ? "백" : "흑";
+          p.i = m.i;
+          p.j = m.j;
+          if (m.cap) m.cap.dead = 1;
+          const prom = p.k === 0 && (p.j === 0 || p.j === 7);
+          if (prom) p.k = 4;
+          const dur = RM ? 0 : p.k === 2 ? 620 : 430 + Math.hypot(m.i - fi, m.j - fj) * 45;
+          g.mv = { p, fi, fj, cap: m.cap, prom, t0: TIME, dur };
+          g.pop = null;
+          g.side = g.side === "W" ? "K" : "W";
+          g.n++;
+          gBusy(dur + 80);
+          knock(dur / 1000, m.cap ? 330 : 520, m.cap ? 0.7 : 0.45);
+          let t = m.cap
+            ? `♟ ${sd} ${CH_GA[nm]} ${m.cap.c === "W" ? "백" : "흑"} ${CH_EUL[m.cap.k]} 잡았어요! (${chSq(m.i, m.j)})`
+            : `♟ ${sd} ${CH_GA[nm]} ${chSq(fi, fj)} → ${chSq(m.i, m.j)}`;
+          if (prom) t += " 끝줄 도착, 퀸으로 승진!";
+          const alive = g.P.filter((q) => !q.dead).length;
+          if (g.n >= 40 || alive <= 6 || !chessMoves(g.P, g.side).length) {
+            g.over = 1;
+            t += " — 이번 판은 여기까지. 다시 누르면 새 판!";
+          }
+          msg(t);
+        }
+
+        // ── 마작: 주사위를 굴리고, 네 사람이 돌아가며 패를 한 장씩 버린다 ──
+        const MJ_Z = 15.5,
+          MJ_BK = "#4f7cc4",
+          MJ_IV = "#f4efe0",
+          MJ_OLD = [
+            [11, 11, 5.4, 2.4],
+            [16.6, 11, 3.6, 2.4],
+            [11, 18.6, 7.2, 2.4],
+            [19.4, 15, 2.4, 3.6],
+          ],
+          MJ_HAND = [
+            [16, 26.8],
+            [26.8, 16],
+            [16, 5.2],
+            [5.2, 16],
+          ],
+          MJ_WHO = ["내가", "오른쪽 사람이", "맞은편 사람이", "왼쪽 사람이"],
+          MJ_MAX = 24;
+        // 버림패 자리: 사람마다 한 줄씩 6장
+        const mjSlot = (n) => {
+          const s = n % 4,
+            k = Math.floor(n / 4),
+            row = [3, 2, 0, 1][s],
+            c = s === 0 || s === 3 ? k : 5 - k;
+          return [10.2 + c * 1.95, 10.4 + row * 2.6];
+        };
+        const mjB = (it) => {
+          const g = it && GAMES.get(it.id),
+            z = MJ_Z,
+            hop = (s) =>
+              g && g.win != null && g.winner === s && !RM && TIME - g.win < 1500
+                ? Math.abs(Math.sin((TIME - g.win) / 110)) * 1.6 * (1 - (TIME - g.win) / 1500)
+                : 0,
+            r = [
+              ...legs(
+                [
+                  [3, 3],
+                  [27, 3],
+                  [3, 27],
+                  [27, 27],
+                ],
+                13,
+                "a",
+                2,
+              ),
+              B(2, 2, 11, 28, 28, 2, "a"),
+              B(1, 1, 13, 30, 30, 2, "A"),
+              B(3, 3, 15, 26, 26, 0.5, "#2f7a4a", { t: "feltT" }),
+              B(1, 1, 15, 30, 2, 1.2, "A"),
+              B(1, 29, 15, 30, 2, 1.2, "A"),
+              B(1, 3, 15, 2, 26, 1.2, "A"),
+              B(29, 3, 15, 2, 26, 1.2, "A"),
+              // 네 줄로 쌓은 패 산
+              B(8, 7, z, 16, 2, 2.4, MJ_BK, { t: "mjWall" }),
+              B(8, 23, z, 16, 2, 2.4, MJ_BK, { t: "mjWall" }),
+              B(7, 9, z, 2, 14, 2.4, MJ_BK, { t: "mjWall" }),
+              B(23, 9, z, 2, 14, 2.4, MJ_BK, { t: "mjWall" }),
+              // 손패: 앞·오른쪽은 패 앞면이, 뒤·왼쪽은 뒷면이 보인다. 화료하면 그 사람 손패가 들썩인다
+              B(8.5, 26.2, z + hop(0), 15, 1.2, 2.6, MJ_BK, { t: "mjFace" }),
+              B(26.2, 8.5, z + hop(1), 1.2, 15, 2.6, MJ_BK, { t: "mjFace" }),
+              B(8.5, 4.6, z + hop(2), 15, 1.2, 2.6, MJ_BK, { t: "mjWall" }),
+              B(4.6, 8.5, z + hop(3), 1.2, 15, 2.6, MJ_BK, { t: "mjWall" }),
+            ];
+          if (!g) {
+            // 가운데 버린 패와 주사위
+            for (const [x, y, w, d] of MJ_OLD) r.push(B(x, y, z, w, d, 0.8, MJ_IV, { t: "mjFace" }));
+            r.push(B(14.6, 15, z, 1.2, 1.2, 1.2, "#ffffff"), B(16.2, 15.6, z, 1.2, 1.2, 1.2, "#ffffff"));
+            return r;
+          }
+          // 지난 판 버림패는 판 밑으로 스르르 가라앉는다
+          if (g.sink) {
+            const u = gU(g.sinkT, 500);
+            if (u < 1) for (const [x, y, w, d] of g.sink) r.push(B(x, y, z - u * 0.85, w, d, 0.8, MJ_IV, { t: "mjFace" }));
+          }
+          // 주사위: 가운데에서 통통 튀며 굴러 제자리에 멈춘다
+          const du = gU(g.dice, 900);
+          for (const [k, fx, fy] of [
+            [0, 14.6, 21.3],
+            [1, 16.4, 21.5],
+          ]) {
+            const sx = 15 + k * 1.4,
+              sy = 15.4,
+              e = gEase(du);
+            r.push(
+              B(sx + (fx - sx) * e, sy + (fy - sy) * e, z + Math.abs(Math.sin(du * Math.PI * 3)) * (1 - du) * 5, 1.2, 1.2, 1.2, "#ffffff", {
+                t: du < 1 ? "dots" : null,
+              }),
+            );
+          }
+          // 버린 패: 손에서 뒤집힌 채 날아와 앞면으로 내려앉는다
+          for (const d of g.disc) {
+            const [sx, sy] = mjSlot(d.n),
+              [hx, hy] = MJ_HAND[d.n % 4],
+              u = gU(d.t0, 450);
+            if (u >= 1) r.push(B(sx, sy, z, 1.8, 2.4, 0.8, MJ_IV, { t: "mjFace" }));
+            else {
+              const e = gEase(u);
+              r.push(
+                B(hx - 0.9 + (sx - hx + 0.9) * e, hy - 1.2 + (sy - hy + 1.2) * e, z + 1.6 + Math.sin(Math.PI * u) * 4 - u * 1.6, 1.8, 2.4, 0.8, MJ_BK, {
+                  t: "mjWall",
+                }),
+              );
+            }
+          }
+          return r;
+        };
+        function mjClick(it) {
+          let g = GAMES.get(it.id);
+          if (!g || g.end) {
+            const prev = g ? g.disc.map((d) => [...mjSlot(d.n), 1.8, 2.4]) : MJ_OLD,
+              a = 1 + Math.floor(Math.random() * 6),
+              b = 1 + Math.floor(Math.random() * 6);
+            GAMES.set(it.id, (g = { dice: TIME, disc: [], sink: prev, sinkT: TIME, seat: 0 }));
+            gBusy(950);
+            for (let i = 0; i < 4; i++) knock(0.12 + i * 0.2, 900 - i * 90, 0.35 - i * 0.07);
+            msg(`🀄 주사위 ${a} + ${b} = ${a + b}! 새 판 시작, 내 차례부터 버려요.`);
+            return;
+          }
+          if (g.disc.length >= MJ_MAX) {
+            g.end = 1;
+            g.win = TIME;
+            g.winner = Math.floor(Math.random() * 4);
+            gBusy(1550);
+            [0, 0.12, 0.24].forEach((t, i) => knock(t, 700 + i * 180, 0.4));
+            msg(`🀄 ${MJ_WHO[g.winner]} 쯔모! 화료했어요 🎉 다시 누르면 새 판.`);
+            return;
+          }
+          const n = g.disc.length;
+          g.disc.push({ n, t0: TIME });
+          gBusy(500);
+          knock(0.43, 1500, 0.55);
+          msg(`🀄 ${MJ_WHO[n % 4]} 패를 버렸어요 (${n + 1}/${MJ_MAX})${n + 1 === MJ_MAX ? " — 다음은 누가 날까요?" : ""}`);
+        }
+
+        // ── 당구: 큐가 흰 공을 치면 공들이 부딪히고 구르다 포켓에 빠진다 ──
+        const PL_BC = [
+            "#ffcf3a",
+            "#4f7cc4",
+            "#e83a4a",
+            "#9a6fc4",
+            "#ff8a3a",
+            "#3d8a4a",
+            "#8a2a2a",
+            "#1a1a1a",
+            "#ffcf3a",
+            "#4f7cc4",
+            "#e83a4a",
+            "#9a6fc4",
+            "#ff8a3a",
+            "#3d8a4a",
+            "#8a2a2a",
+          ],
+          PL_PK = [
+            [4, 4, 2.2],
+            [32, 3.4, 2],
+            [60, 4, 2.2],
+            [4, 28, 2.2],
+            [32, 28.6, 2],
+            [60, 28, 2.2],
+          ],
+          PL_X0 = 5,
+          PL_X1 = 59,
+          PL_Y0 = 5,
+          PL_Y1 = 27,
+          PL_H = 1 / 240;
+        const poolRack = () => {
+          const r = [{ x: 18, y: 16, vx: 0, vy: 0, c: "#ffffff", cue: 1 }];
+          let n = 0;
+          for (let row = 0; row < 5; row++)
+            for (let k = 0; k <= row; k++) r.push({ x: 42 + row * 1.75, y: 16 + (k - row / 2) * 2.05, vx: 0, vy: 0, c: PL_BC[n++] });
+          return r;
+        };
+        function poolStep(g) {
+          const h = PL_H,
+            L = g.B.filter((b) => !b.in);
+          for (const b of L) {
+            b.x += b.vx * h;
+            b.y += b.vy * h;
+          }
+          for (const b of L) {
+            for (const [px, py, pr] of PL_PK)
+              if (Math.hypot(b.x - px, b.y - py) < pr) {
+                b.in = 1;
+                b.px = px;
+                b.py = py;
+                b.ptT = TIME;
+                b.vx = b.vy = 0;
+                g.pot.push(b);
+                if (!RM) knock(0, 160, 0.6);
+                break;
+              }
+            if (b.in) continue;
+            let hit = 0;
+            if (b.x < PL_X0) (b.x = PL_X0), (hit = Math.abs(b.vx)), (b.vx = -b.vx * 0.8);
+            if (b.x > PL_X1) (b.x = PL_X1), (hit = Math.abs(b.vx)), (b.vx = -b.vx * 0.8);
+            if (b.y < PL_Y0) (b.y = PL_Y0), (hit = Math.abs(b.vy)), (b.vy = -b.vy * 0.8);
+            if (b.y > PL_Y1) (b.y = PL_Y1), (hit = Math.abs(b.vy)), (b.vy = -b.vy * 0.8);
+            if (hit > 8 && !RM && g.simT - (g.lastS || 0) > 30) {
+              g.lastS = g.simT;
+              knock(0, 220, Math.min(0.35, hit / 250));
+            }
+          }
+          for (let i = 0; i < L.length; i++)
+            for (let j = i + 1; j < L.length; j++) {
+              const a = L[i],
+                b = L[j];
+              if (a.in || b.in) continue;
+              const dx = b.x - a.x,
+                dy = b.y - a.y,
+                d = Math.hypot(dx, dy);
+              if (d >= 2 || d < 1e-6) continue;
+              const nx = dx / d,
+                ny = dy / d,
+                o = (2 - d) / 2;
+              a.x -= nx * o;
+              a.y -= ny * o;
+              b.x += nx * o;
+              b.y += ny * o;
+              const vn = (b.vx - a.vx) * nx + (b.vy - a.vy) * ny;
+              if (vn >= 0) continue;
+              const jn = (-(1 + 0.95) / 2) * vn;
+              a.vx -= jn * nx;
+              a.vy -= jn * ny;
+              b.vx += jn * nx;
+              b.vy += jn * ny;
+              if (-vn > 4 && !RM && g.simT - (g.lastS || 0) > 20) {
+                g.lastS = g.simT;
+                knock(0, 1300 + Math.random() * 300, Math.min(0.8, -vn / 90));
+              }
+            }
+          let mv = 0;
+          for (const b of L) {
+            if (b.in) continue;
+            const sp = Math.hypot(b.vx, b.vy);
+            if (!sp) continue;
+            const ns = Math.max(0, sp - (10 + sp * 0.35) * h);
+            if (ns < 0.5) b.vx = b.vy = 0;
+            else {
+              b.vx *= ns / sp;
+              b.vy *= ns / sp;
+              mv = 1;
+            }
+          }
+          return mv;
+        }
+        // 넣기 좋은 공과 포켓을 골라 겨냥한다 (고스트 볼: 목표 공 뒤 지름만큼 떨어진 점을 친다)
+        function poolAim(g) {
+          const cb = g.B.find((b) => b.cue),
+            obs = g.B.filter((b) => !b.cue && !b.in);
+          if (!obs.length) return null;
+          if (!g.shots) return { dx: 1, dy: (Math.random() - 0.5) * 0.04, pow: 135 };
+          let best = null;
+          for (const o of obs)
+            for (const [px, py] of PL_PK) {
+              const tx = px - o.x,
+                ty = py - o.y,
+                d2 = Math.hypot(tx, ty),
+                ux = tx / d2,
+                uy = ty / d2,
+                gx = o.x - ux * 2,
+                gy = o.y - uy * 2,
+                ax = gx - cb.x,
+                ay = gy - cb.y,
+                d1 = Math.hypot(ax, ay);
+              if (d1 < 0.5) continue;
+              const cos = (ax * ux + ay * uy) / d1;
+              if (cos < 0.4) continue;
+              const sc = cos - (d1 + d2) * 0.006 + Math.random() * 0.2;
+              if (!best || sc > best.sc) best = { sc, dx: ax / d1, dy: ay / d1, pow: Math.min(125, 30 + d1 * 0.5 + (d2 / cos) * 1.3) };
+            }
+          if (best) return best;
+          const o = obs.reduce((m, b) => (Math.hypot(b.x - cb.x, b.y - cb.y) < Math.hypot(m.x - cb.x, m.y - cb.y) ? b : m)),
+            d = Math.hypot(o.x - cb.x, o.y - cb.y);
+          return { dx: (o.x - cb.x) / d, dy: (o.y - cb.y) / d, pow: 80 };
+        }
+        function poolFinish(g) {
+          g.run = 0;
+          const n = g.pot.filter((b) => !b.cue).length,
+            scr = g.pot.some((b) => b.cue),
+            cb = g.B.find((b) => b.cue),
+            left = g.B.filter((b) => !b.cue && !b.in).length;
+          if (scr) {
+            // 흰 공이 빠지면 처음 자리(비어 있는 곳)에 다시 놓는다
+            let x = 18;
+            while (g.B.some((b) => !b.in && !b.cue && Math.hypot(b.x - x, b.y - 16) < 2.2) && x < 56) x += 2.2;
+            Object.assign(cb, { in: 0, x, y: 16, vx: 0, vy: 0, ptT: null });
+          }
+          g.aim = left ? poolAim(g) : null;
+          g.over = !left;
+          msg(
+            !left
+              ? "🎱 공을 전부 넣었어요! 다시 누르면 새로 공을 모아 놓아요."
+              : `🎱 ${n ? `${n}개 넣었어요!` : "아깝게 못 넣었어요."}${scr ? " 흰 공이 빠져서 다시 놓았어요." : ""} 남은 공 ${left}개.`,
+          );
+          dirty = 1;
+        }
+        function poolSim(g) {
+          if (!g.run) return;
+          const now = RM ? Infinity : TIME,
+            c = g.cue;
+          if (now < c.hit) return gBusy(120);
+          if (!g.struck) {
+            const cb = g.B.find((b) => b.cue);
+            cb.vx = c.dx * c.pow;
+            cb.vy = c.dy * c.pow;
+            g.struck = 1;
+            g.simT = RM ? 0 : c.hit;
+            if (!RM) knock(0, 900, 0.6);
+          }
+          let n = 0;
+          while (g.run && (RM || g.simT + PL_H * 1000 <= now) && n++ < 6000) {
+            const mv = poolStep(g);
+            g.simT += PL_H * 1000;
+            if (!mv) poolFinish(g);
+          }
+          if (g.run) {
+            if (RM) {
+              for (const b of g.B) b.vx = b.vy = 0;
+              poolFinish(g);
+            } else {
+              if (now - g.simT > 200) g.simT = now; // 탭을 오래 비웠으면 따라잡지 않는다
+              gBusy(150);
+            }
+          }
+        }
+        const poolCue = (x, y, dx, dy, pull) => {
+          // 큐는 공 뒤로 비스듬히 올라가는 작은 토막들로 그린다 (어느 방향이든 겨눌 수 있게)
+          const r = [];
+          for (let q = 0; q < 16; q++) {
+            const k = 1.6 + pull + q * 1.05;
+            r.push(
+              B(x - dx * k - 0.5, y - dy * k - 0.5, 14.6 + q * 0.16, 1, 1, 0.8, q === 0 ? "#f4efe6" : q === 1 ? "#5b8fd8" : q < 11 ? "#e8c070" : "#3a2418"),
+            );
+          }
+          return r;
+        };
+        const poolB = (it) => {
+          const g = it && GAMES.get(it.id),
+            r = [
+              ...[
+                [3, 3],
+                [30.5, 3],
+                [58, 3],
+                [3, 26],
+                [30.5, 26],
+                [58, 26],
+              ].map(([x, y]) => B(x, y, 0, 3, 3, 10, "a", { sph: "cyl" })),
+              B(1, 1, 9, 62, 30, 5, "A"),
+              B(4, 4, 13.4, 56, 24, 0.6, "#2f8a4a", { t: "feltT" }),
+              B(1, 1, 13, 62, 3, 2.4, "A"),
+              B(1, 28, 13, 62, 3, 2.4, "A"),
+              B(1, 4, 13, 3, 24, 2.4, "A"),
+              B(60, 4, 13, 3, 24, 2.4, "A"),
+              ...[
+                [4, 4],
+                [32, 3.4],
+                [60, 4],
+                [4, 28],
+                [32, 28.6],
+                [60, 28],
+              ].map(([x, y]) => B(x - 1.7, y - 1.7, 13.2, 3.4, 3.4, 2.3, "#1a1a1a", { sph: "cyl" })),
+              ...[16, 32, 48].flatMap((x) => [B(x - 0.4, 1.6, 15.4, 0.8, 0.8, 0.1, "#f4efe6"), B(x - 0.4, 29.6, 15.4, 0.8, 0.8, 0.1, "#f4efe6")]),
+            ];
+          if (!g) {
+            for (const b of poolRack()) r.push(B(b.x - 1, b.y - 1, 14, 2, 2, 2, b.c, { sph: 1 }));
+            r.push(B(7, 21, 14.4, 24, 0.8, 0.8, "#e8c070"), B(6, 21, 14.4, 1, 0.8, 0.8, "#f4efe6"), B(25, 20.9, 14.3, 6, 1, 1, "#3a2418"));
+            return r;
+          }
+          poolSim(g);
+          const pop = g.pop != null ? gEase(gU(g.pop, 450)) : 1;
+          for (const b of g.B) {
+            if (b.in) {
+              // 포켓으로 빨려 들어가며 작아진다
+              const u = b.ptT == null || RM ? 1 : Math.min(1, (TIME - b.ptT) / 260);
+              if (u >= 1) continue;
+              const x = b.x + (b.px - b.x) * u,
+                y = b.y + (b.py - b.y) * u,
+                s = 2 * (1 - 0.6 * u);
+              r.push(B(x - s / 2, y - s / 2, 14 - u * 1.5, s, s, s, b.c, { sph: 1 }));
+              continue;
+            }
+            const s = 2 * pop;
+            if (s > 0.1) r.push(B(b.x - s / 2, b.y - s / 2, 14, s, s, s, b.c, { sph: 1 }));
+          }
+          const cb = g.B.find((b) => b.cue);
+          if (g.run && !g.struck) {
+            // 뒤로 당겼다가 탁 밀어 친다
+            const c = g.cue,
+              u = TIME - c.t0,
+              pull = u < 260 ? 1.2 + 3 * gEase(u / 260) : 4.2 * Math.max(0, 1 - (u - 260) / 80);
+            r.push(...poolCue(c.x, c.y, c.dx, c.dy, pull));
+          } else if (g.run && TIME - g.cue.hit < 220) r.push(...poolCue(g.cue.x, g.cue.y, g.cue.dx, g.cue.dy, -0.6));
+          else if (!g.run && g.aim && !cb.in) r.push(...poolCue(cb.x, cb.y, g.aim.dx, g.aim.dy, 1.2));
+          return r;
+        };
+        function poolClick(it) {
+          let g = GAMES.get(it.id);
+          if (g && g.run) {
+            msg("🎱 공이 아직 굴러가요. 멈추면 다시 쳐 주세요.");
+            return;
+          }
+          if (g && g.over) {
+            GAMES.set(it.id, { B: poolRack(), shots: 0, pop: TIME, aim: { dx: 1, dy: 0, pow: 135 } });
+            gBusy(500);
+            for (let i = 0; i < 3; i++) knock(i * 0.09, 1200 + i * 120, 0.3);
+            msg("🎱 공을 다시 삼각형으로 모았어요. 누르면 브레이크 샷!");
+            return;
+          }
+          if (!g) GAMES.set(it.id, (g = { B: poolRack(), shots: 0 }));
+          const a = g.aim && g.shots ? g.aim : poolAim(g),
+            cb = g.B.find((b) => b.cue);
+          g.cue = { t0: TIME, hit: TIME + 340, x: cb.x, y: cb.y, dx: a.dx, dy: a.dy, pow: a.pow };
+          g.run = 1;
+          g.struck = 0;
+          g.pot = [];
+          g.pop = null;
+          g.aim = null;
+          g.shots++;
+          gBusy(400);
+          msg(g.shots === 1 ? "🎱 브레이크 샷!" : "🎱 딱!");
+        }
+
+        // ── 바둑: 누를 때마다 흑백이 번갈아 한 수씩 ──
+        const BD_OLD = [
+            [2, 2, 1],
+            [2, 3, 0],
+            [3, 3, 1],
+            [6, 6, 0],
+            [5, 6, 1],
+            [6, 2, 0],
+            [4, 4, 1],
+            [3, 6, 0],
+            [5, 5, 1],
+            [6, 5, 0],
+          ],
+          BD_MAX = 36,
+          bdCol = (k) => (k ? "#1a1a1e" : "#f8f8f4");
+        const badukB = (it) => {
+          const g = it && GAMES.get(it.id),
+            st = (i, j, c, dz = 0, s = 1.6) => B(7 + 1.8 + i * 1.8 - s / 2, 7 + 1.8 + j * 1.8 - s / 2, 10 + dz, s, s, 0.7 * (s / 1.6), c, { sph: 1 }),
+            bowl = (x, y, c) => [
+              B(x, y, 0, 7, 7, 3, "#8a5530", { sph: "cyl" }),
+              B(x, y, 2.9, 7, 7, 1.8, "#8a5530", { sph: "dome" }),
+              B(x + 2.8, y + 2.8, 4.5, 1.4, 1.4, 0.6, c, { sph: 1 }),
+            ],
+            r = [
+              ...[
+                [8, 8],
+                [21, 8],
+                [8, 21],
+                [21, 21],
+              ].map(([x, y]) => B(x, y, 0, 3, 3, 3, "a", { sph: "cyl" })),
+              B(7, 7, 3, 18, 18, 7, "A", { t: "badukT" }),
+              ...bowl(0.5, 24.5, "#1a1a1e"),
+              ...bowl(24.5, 0.5, "#f8f8f4"),
+            ];
+          if (!g) {
+            for (const [i, j, k] of BD_OLD) r.push(st(i, j, bdCol(k)));
+            return r;
+          }
+          if (g.clr != null) {
+            const s = 1.6 * (1 - gEase(gU(g.clr, 400)));
+            if (s > 0.1) for (const [i, j, k] of g.old) r.push(st(i, j, bdCol(k), 0, s));
+          }
+          for (const [i, j, k, t0] of g.S) {
+            const u = gU(t0, 260);
+            r.push(st(i, j, bdCol(k), (1 - u * u) * 6));
+          }
+          return r;
+        };
+        function badukClick(it) {
+          let g = GAMES.get(it.id);
+          if (!g) GAMES.set(it.id, (g = { S: BD_OLD.map(([i, j, k]) => [i, j, k, -1e9]) }));
+          if (g.S.length >= BD_MAX) {
+            g.old = g.S;
+            g.S = [];
+            g.clr = TIME;
+            gBusy(450);
+            for (let i = 0; i < 4; i++) knock(i * 0.07, 1100 - i * 60, 0.25);
+            msg("⚫ 돌을 모두 거두었어요. 누르면 흑부터 다시 둬요.");
+            return;
+          }
+          const taken = new Set(g.S.map(([i, j]) => i * 9 + j)),
+            free = [],
+            near = [];
+          for (let i = 0; i < 9; i++)
+            for (let j = 0; j < 9; j++) {
+              if (taken.has(i * 9 + j)) continue;
+              free.push([i, j]);
+              if (g.S.some(([a, b]) => Math.abs(a - i) + Math.abs(b - j) <= 2)) near.push([i, j]);
+            }
+          if (!free.length) return;
+          const [i, j] = gRand(near.length && Math.random() < 0.85 ? near : free),
+            k = g.S.length % 2 === 0 ? 1 : 0;
+          g.S.push([i, j, k, TIME]);
+          gBusy(300);
+          knock(0.24, 1000, 0.7);
+          msg(`${k ? "⚫ 흑" : "⚪ 백"}이 ${"ABCDEFGHJ"[i]}${9 - j}에 딱! (${g.S.length}/${BD_MAX})`);
+        }
+        function playGame(it) {
+          const g = ITEMS[it.k].game;
+          audio();
+          if (g === "chess") chessClick(it);
+          else if (g === "mahjong") mjClick(it);
+          else if (g === "pool") poolClick(it);
+          else if (g === "baduk") badukClick(it);
+        }
         // 타원을 따라 둥근 돌을 빙 둘러 놓는다 (연못 테두리)
         const stoneRing = (cx, cy, rx, ry, n, s, h, cols) =>
           Array.from({ length: n }, (_, i) => {
@@ -3194,7 +3860,7 @@
                   2,
                   2,
                   3,
-                  on ? (Math.floor((RM ? 0 : TIME) / 500 + i * 1.7) % 5 ? FC[i % 4] : "#ffffff") : "#777777",
+                  on ? FC[i % 4] : "#777777",
                   { e: 1 },
                 ),
               ),
@@ -4969,8 +5635,8 @@
             d: 1,
             A: "#ff6b8b",
             b: () => [
-              B(6.4, 6.4, 0, 3.2, 3.2, 2.4, "#c94f5d", { sph: "cyl", keep: 1 }),
-              B(7.6, 7.6, 2.4, 0.4, 0.4, 1, "#c94f5d", { keep: 1 }),
+              B(6.4, 6.4, 0, 3.2, 3.2, 2.4, "#d7c6aa", { sph: "cyl", keep: 1 }),
+              B(7.6, 7.6, 2.4, 0.4, 0.4, 1, "#d7c6aa", { keep: 1 }),
               ...Array.from({ length: 10 }, (_, i) => B(4.2, 4.8, 3.0 + i * 2.1, 0.8, 0.8, 3.4, "#e8e8e8", { keep: 1 })),
               ...Array.from({ length: 13 }, (_, i) => B(10.200000000000001, 6.2, 3.0 + i * 2.0, 0.8, 0.8, 3.3, "#e8e8e8", { keep: 1 })),
               ...Array.from({ length: 9 }, (_, i) => B(6.8, 10.4, 3.0 + i * 2.0, 0.8, 0.8, 3.3, "#e8e8e8", { keep: 1 })),
@@ -6261,8 +6927,23 @@
             L: "f",
             w: 1,
             d: 1,
-            A: "#b0b8c0",
-            b: () => [B(1, 3, 0, 3, 3, 3, "#333333"), B(12, 3, 0, 3, 3, 3, "#333333"), B(4, 4, 1, 8, 1, 1, "A")],
+            A: "#4a505c",
+            sec: "#c8ccd0",
+            pn: ["원판", "손잡이"],
+            b: () => [
+              // 양쪽에 둥근 원판 두 장씩, 가운데 은색 손잡이
+              ...[0, 1].flatMap((side) => {
+                const m = (x, w) => (side ? 16 - x - w : x);
+                return [
+                  B(m(2.6, 2.2), 0.6, 0, 2.2, 6.8, 6.8, "A", { sph: 1 }),
+                  B(m(1, 1.8), 1.3, 0.7, 1.8, 5.4, 5.4, "A", { sph: 1 }),
+                  B(m(2.9, 1.6), 1.2, 0.6, 1.6, 5.6, 5.6, "L", { sph: 1 }),
+                  B(m(0.2, 1.2), 3.3, 2.8, 1.2, 1.4, 1.4, "#c8ccd0", { sph: 1 }),
+                ];
+              }),
+              B(4.6, 3.4, 2.9, 6.8, 1.2, 1.2, "#c8ccd0", { sph: 1 }),
+              ...[6, 7.2, 8.4, 9.6].map((x) => B(x, 3.3, 2.8, 0.5, 1.4, 1.4, "#9aa0a8", { sph: 1 })),
+            ],
           },
           beachball: {
             fw: 1,
@@ -8381,26 +9062,8 @@
             w: 1,
             d: 1,
             A: "#8a5530",
-            b: () => {
-              const m = 1.28,
-                s = 1.68,
-                P = (i, j, k, c) => cpiece(m + (i + 0.5) * s, m + (j + 0.5) * s, 1.2, k, c, 0.95),
-                Wh = "#f8f4ea",
-                Bk = "#2a2a30";
-              return [
-                B(0, 0, 0, 16, 16, 1.2, "A", { t: "chessT" }),
-                ...[0, 2, 5, 6, 7].flatMap((i) => P(i, 1, 0, Bk)),
-                ...P(0, 0, 1, Bk),
-                ...P(6, 0, 5, Bk),
-                ...P(2, 2, 2, Bk),
-                ...P(4, 3, 3, Bk),
-                ...[0, 1, 5, 6, 7].flatMap((i) => P(i, 6, 0, Wh)),
-                ...P(7, 7, 1, Wh),
-                ...P(6, 7, 5, Wh),
-                ...P(3, 4, 4, Wh),
-                ...P(5, 5, 2, Wh),
-              ];
-            },
+            game: "chess",
+            b: (on, it) => [B(0, 0, 0, 16, 16, 1.2, "A", { t: "chessT" }), ...chessB("chess", it)],
           },
           chesstable: {
             n: "체스 테이블",
@@ -8409,29 +9072,14 @@
             w: 2,
             d: 2,
             A: "#c98d55",
-            b: () => {
-              const m = 1.92,
-                s = 2.52,
-                P = (i, j, k, c) => cpiece(4 + m + (i + 0.5) * s, 4 + m + (j + 0.5) * s, 16.3, k, c, 1.45),
-                Wh = "#f8f4ea",
-                Bk = "#2a2a30";
-              return [
-                B(9, 9, 0, 14, 14, 1.5, "a"),
-                B(13, 13, 1.5, 6, 6, 12, "a", { sph: "cyl" }),
-                B(2, 2, 13.5, 28, 28, 2, "A"),
-                B(4, 4, 15.5, 24, 24, 0.8, "#8a5530", { t: "chessT" }),
-                ...[0, 1, 5, 6, 7].flatMap((i) => P(i, 1, 0, Bk)),
-                ...P(0, 0, 1, Bk),
-                ...P(4, 0, 5, Bk),
-                ...P(2, 2, 2, Bk),
-                ...P(5, 2, 3, Bk),
-                ...[0, 2, 3, 6, 7].flatMap((i) => P(i, 6, 0, Wh)),
-                ...P(7, 7, 1, Wh),
-                ...P(4, 7, 5, Wh),
-                ...P(3, 5, 4, Wh),
-                ...P(5, 5, 2, Wh),
-              ];
-            },
+            game: "chess",
+            b: (on, it) => [
+              B(9, 9, 0, 14, 14, 1.5, "a"),
+              B(13, 13, 1.5, 6, 6, 12, "a", { sph: "cyl" }),
+              B(2, 2, 13.5, 28, 28, 2, "A"),
+              B(4, 4, 15.5, 24, 24, 0.8, "#8a5530", { t: "chessT" }),
+              ...chessB("chesstable", it),
+            ],
           },
           mahjong: {
             n: "마작탁",
@@ -8440,48 +9088,8 @@
             w: 2,
             d: 2,
             A: "#6b3f26",
-            b: () => {
-              const Bk = "#4f7cc4",
-                Iv = "#f4efe0",
-                z = 15.5;
-              return [
-                ...legs(
-                  [
-                    [3, 3],
-                    [27, 3],
-                    [3, 27],
-                    [27, 27],
-                  ],
-                  13,
-                  "a",
-                  2,
-                ),
-                B(2, 2, 11, 28, 28, 2, "a"),
-                B(1, 1, 13, 30, 30, 2, "A"),
-                B(3, 3, 15, 26, 26, 0.5, "#2f7a4a", { t: "feltT" }),
-                B(1, 1, 15, 30, 2, 1.2, "A"),
-                B(1, 29, 15, 30, 2, 1.2, "A"),
-                B(1, 3, 15, 2, 26, 1.2, "A"),
-                B(29, 3, 15, 2, 26, 1.2, "A"),
-                // 네 줄로 쌓은 패 산
-                B(8, 7, z, 16, 2, 2.4, Bk, { t: "mjWall" }),
-                B(8, 23, z, 16, 2, 2.4, Bk, { t: "mjWall" }),
-                B(7, 9, z, 2, 14, 2.4, Bk, { t: "mjWall" }),
-                B(23, 9, z, 2, 14, 2.4, Bk, { t: "mjWall" }),
-                // 손패: 앞·오른쪽은 패 앞면이, 뒤·왼쪽은 뒷면이 보인다
-                B(8.5, 26.2, z, 15, 1.2, 2.6, Bk, { t: "mjFace" }),
-                B(26.2, 8.5, z, 1.2, 15, 2.6, Bk, { t: "mjFace" }),
-                B(8.5, 4.6, z, 15, 1.2, 2.6, Bk, { t: "mjWall" }),
-                B(4.6, 8.5, z, 1.2, 15, 2.6, Bk, { t: "mjWall" }),
-                // 가운데 버린 패와 주사위
-                B(11, 11, z, 5.4, 2.4, 0.8, Iv, { t: "mjFace" }),
-                B(16.6, 11, z, 3.6, 2.4, 0.8, Iv, { t: "mjFace" }),
-                B(11, 18.6, z, 7.2, 2.4, 0.8, Iv, { t: "mjFace" }),
-                B(19.4, 15, z, 2.4, 3.6, 0.8, Iv, { t: "mjFace" }),
-                B(14.6, 15, z, 1.2, 1.2, 1.2, "#ffffff"),
-                B(16.2, 15.6, z, 1.2, 1.2, 1.2, "#ffffff"),
-              ];
-            },
+            game: "mahjong",
+            b: (on, it) => mjB(it),
           },
           baduk: {
             n: "바둑판",
@@ -8490,39 +9098,8 @@
             w: 2,
             d: 2,
             A: "#e0b070",
-            b: () => {
-              const m = 1.8,
-                s = 1.8,
-                st = (i, j, c) => B(7 + m + i * s - 0.8, 7 + m + j * s - 0.8, 10, 1.6, 1.6, 0.7, c, { sph: 1 }),
-                bowl = (x, y, c) => [
-                  B(x, y, 0, 7, 7, 3, "#8a5530", { sph: "cyl" }),
-                  B(x, y, 2.9, 7, 7, 1.8, "#8a5530", { sph: "dome" }),
-                  B(x + 2.8, y + 2.8, 4.5, 1.4, 1.4, 0.6, c, { sph: 1 }),
-                ];
-              return [
-                ...[
-                  [8, 8],
-                  [21, 8],
-                  [8, 21],
-                  [21, 21],
-                ].map(([x, y]) => B(x, y, 0, 3, 3, 3, "a", { sph: "cyl" })),
-                B(7, 7, 3, 18, 18, 7, "A", { t: "badukT" }),
-                ...[
-                  [2, 2, "#1a1a1e"],
-                  [2, 3, "#f8f8f4"],
-                  [3, 3, "#1a1a1e"],
-                  [6, 6, "#f8f8f4"],
-                  [5, 6, "#1a1a1e"],
-                  [6, 2, "#f8f8f4"],
-                  [4, 4, "#1a1a1e"],
-                  [3, 6, "#f8f8f4"],
-                  [5, 5, "#1a1a1e"],
-                  [6, 5, "#f8f8f4"],
-                ].map(([i, j, c]) => st(i, j, c)),
-                ...bowl(0.5, 24.5, "#1a1a1e"),
-                ...bowl(24.5, 0.5, "#f8f8f4"),
-              ];
-            },
+            game: "baduk",
+            b: (on, it) => badukB(it),
           },
           boardgames: {
             fw: 3,
@@ -8560,112 +9137,8 @@
             w: 4,
             d: 2,
             A: "#6b3f26",
-            b: () => {
-              const BC = [
-                  "#ffcf3a",
-                  "#4f7cc4",
-                  "#e83a4a",
-                  "#9a6fc4",
-                  "#ff8a3a",
-                  "#3d8a4a",
-                  "#8a2a2a",
-                  "#1a1a1a",
-                  "#ffcf3a",
-                  "#4f7cc4",
-                  "#e83a4a",
-                  "#9a6fc4",
-                  "#ff8a3a",
-                  "#3d8a4a",
-                  "#8a2a2a",
-                ],
-                r = [
-                  ...[
-                    [3, 3],
-                    [30.5, 3],
-                    [58, 3],
-                    [3, 26],
-                    [30.5, 26],
-                    [58, 26],
-                  ].map(([x, y]) => B(x, y, 0, 3, 3, 10, "a", { sph: "cyl" })),
-                  B(1, 1, 9, 62, 30, 5, "A"),
-                  B(4, 4, 13.4, 56, 24, 0.6, "#2f8a4a", { t: "feltT" }),
-                  B(1, 1, 13, 62, 3, 2.4, "A"),
-                  B(1, 28, 13, 62, 3, 2.4, "A"),
-                  B(1, 4, 13, 3, 24, 2.4, "A"),
-                  B(60, 4, 13, 3, 24, 2.4, "A"),
-                  ...[
-                    [4, 4],
-                    [32, 3.4],
-                    [60, 4],
-                    [4, 28],
-                    [32, 28.6],
-                    [60, 28],
-                  ].map(([x, y]) => B(x - 1.7, y - 1.7, 13.2, 3.4, 3.4, 2.3, "#1a1a1a", { sph: "cyl" })),
-                  ...[16, 32, 48].flatMap((x) => [
-                    B(x - 0.4, 1.6, 15.4, 0.8, 0.8, 0.1, "#f4efe6"),
-                    B(x - 0.4, 29.6, 15.4, 0.8, 0.8, 0.1, "#f4efe6"),
-                  ]),
-                ];
-              let n = 0;
-              for (let row = 0; row < 5; row++)
-                for (let k = 0; k <= row; k++)
-                  r.push(B(42 + row * 1.75 - 1, 16 + (k - row / 2) * 2.05 - 1, 14, 2, 2, 2, BC[n++], { sph: 1 }));
-              r.push(B(17, 15, 14, 2, 2, 2, "#ffffff", { sph: 1 }));
-              r.push(
-                B(7, 21, 14.4, 24, 0.8, 0.8, "#e8c070"),
-                B(6, 21, 14.4, 1, 0.8, 0.8, "#f4efe6"),
-                B(25, 20.9, 14.3, 6, 1, 1, "#3a2418"),
-              );
-              return r;
-            },
-          },
-          foosball: {
-            n: "테이블 축구",
-            c: "놀이·취미",
-            L: "f",
-            w: 2,
-            d: 2,
-            A: "#2a2a30",
-            b: () => {
-              const R = "#e83a4a",
-                Bl = "#4f7cc4",
-                team = [R, R, Bl, R, Bl, R, Bl, Bl],
-                cnt = [1, 2, 3, 5, 5, 3, 2, 1],
-                r = [
-                  ...legs(
-                    [
-                      [2, 7.5],
-                      [27.6, 7.5],
-                      [2, 22.1],
-                      [27.6, 22.1],
-                    ],
-                    11,
-                    "a",
-                    2.4,
-                  ),
-                  B(1, 6, 10, 30, 20, 1.5, "A"),
-                  B(2, 7, 11.5, 28, 18, 0.5, "#3d9a4a", { t: "pitchT" }),
-                  B(1, 6, 11.5, 30, 1, 4.5, "A"),
-                  B(1, 25, 11.5, 30, 1, 4.5, "A"),
-                  B(1, 7, 11.5, 1, 18, 4.5, "A"),
-                  B(30, 7, 11.5, 1, 18, 4.5, "A"),
-                  B(2, 13.5, 12, 0.6, 5, 2.4, "#f4efe6"),
-                  B(29.4, 13.5, 12, 0.6, 5, 2.4, "#f4efe6"),
-                  B(15.4, 15.4, 12, 1.2, 1.2, 1.2, "#ffffff", { sph: 1 }),
-                ];
-              for (let i = 0; i < 8; i++) {
-                const x = 4.5 + i * 3.3,
-                  c = team[i],
-                  front = c === R;
-                r.push(B(x - 0.35, 2, 14.8, 0.7, 28, 0.7, "#c0c0c8"));
-                r.push(B(x - 0.6, front ? 29.6 : 0.2, 14.6, 1.2, 2.2, 1.1, "#2a2a2a"));
-                for (let p = 0; p < cnt[i]; p++) {
-                  const y = 16 + (p - (cnt[i] - 1) / 2) * (cnt[i] > 3 ? 3.2 : 4.4);
-                  r.push(B(x - 0.7, y - 0.6, 12, 1.4, 1.2, 3.2, c), B(x - 0.6, y - 0.6, 15, 1.2, 1.2, 1.3, c, { sph: 1 }));
-                }
-              }
-              return r;
-            },
+            game: "pool",
+            b: (on, it) => poolB(it),
           },
           // ── 가구 ──
           grandpiano: {
@@ -9020,6 +9493,627 @@
         };
 
         // ── 판정 범위와 모양 맞추기 ──
+        // ── 선택한 미리보기 가구 9종 ──
+        {
+          // 미리보기의 모델과 텍스처를 본편 렌더러에 연결한다.
+Object.assign(TX, {
+ preview_wood:(x,y,z,f,b)=>((Math.floor((f==='S'?y:x)+Math.sin(z*.27))%9===0)?mul(b.c,.88):b.c),
+ preview_cloth:(x,y,z,f,b)=>((Math.floor(x+y)+Math.floor(z))%5===0?mul(b.c,.94):b.c),
+ preview_glass:(x,y,z,f,b)=>{const s=f==='S'?y:x;return Math.abs((s-z*.6)%14)<.8?[.97,.99,1,.65]:[...b.c,.16]},
+ preview_paper:(x,y,z,f,b)=>f==='F'&&z>2&&z<b.h-2&&Math.floor(z)%3===0&&x>1.5&&x<b.w-1.5?hex('#a8a294'):b.c,
+});
+const C={wood:'#bd8b59',dark:'#765138',cream:'#f4ebdc',ink:'#302c35',metal:'#b9c5ca',gold:'#d5ac67',green:'#609874',pink:'#c98096',blue:'#729eb5',white:'#fff8ec'};
+const cy=(x,y,z,w,d,h,c)=>B(x,y,z,w,d,h,c,{sph:'cyl'});
+const ball=(x,y,z,w,d,h,c)=>B(x,y,z,w,d,h,c,{sph:1});
+const dome=(x,y,z,w,d,h,c)=>B(x,y,z,w,d,h,c,{sph:'dome'});
+const tube=(x,y,z,w,d,h,c)=>B(x,y,z,w,d,h,c,{sph:'tube'});
+const legs=(w,d,h,c=C.dark,z=0)=>[[1,1],[w-3,1],[1,d-3],[w-3,d-3]].map(([x,y])=>B(x,y,z,2,2,h,c));
+const table=(w,d,h,c=C.wood)=>[...legs(w,d,h-2),B(0,0,h-2,w,d,2,c,{t:'preview_wood'})];
+const ring=(cx,cy,z,rx,ry,n,size,c)=>Array.from({length:n},(_,i)=>{const a=i/n*Math.PI*2;return ball(cx+Math.cos(a)*rx-size/2,cy+Math.sin(a)*ry-size/2,z,size,size,size,c)});
+const line=(ax,ay,az,bx,by,bz,r,c)=>{const n=Math.ceil(Math.hypot(bx-ax,by-ay,bz-az)/1.2);return Array.from({length:n+1},(_,i)=>ball(ax+(bx-ax)*i/n-r/2,ay+(by-ay)*i/n-r/2,az+(bz-az)*i/n-r/2,r,r,r,c))};
+const bottle=(x,y,z,c)=>[cy(x,y,z,3,3,5,c),cy(x+.8,y+.8,z+5,1.4,1.4,2,C.gold)];
+const mug=(x,y,z,c='A')=>[cy(x,y,z,4,4,4,c),cy(x+.7,y+.7,z+4,2.6,2.6,.3,C.dark),ball(x+3,y+1,z+1,2,2,2,c)];
+const pot=(x,y,z,s=1)=>[cy(x,y,z,5*s,5*s,5*s,'A'),cy(x+.5*s,y+.5*s,z+5*s,4*s,4*s,.5,C.dark),...[-1,0,1].map((v,i)=>ball(x+(1+v)*s,y+(i%2)*s,z+5*s,3*s,2*s,(5+i)*s,C.green))];
+const spool=(x,y,z,c)=>[cy(x,y,z,4,4,.7,C.wood),cy(x+.5,y+.5,z+.6,3,3,4,c),cy(x,y,z+4.6,4,4,.7,C.wood)];
+const bookrow=(x,y,z,n)=>Array.from({length:n},(_,i)=>B(x+i*2.7,y,z,2.3,5,7+i%3*1.3,[C.pink,C.blue,C.green,C.gold,'#e7cab5'][i%5]));
+const glass=(x,y,z,w,d,h)=>B(x,y,z,w,d,h,'#add9dc',{gl:.18,t:'preview_glass'});
+const feet=(w,d)=>[[2,2],[w-4,2],[2,d-4],[w-4,d-4]].map(([x,y])=>cy(x,y,0,2,2,3,C.ink));
+
+          const category = {menuboard: "소품", musicstand: "악기·음악", recordbin: "수납", aquatable: "책상·테이블", rotatingbookcase: "수납", stainedpartition: "파티션", apothecary: "수납", rolltop: "책상·테이블", towelrail: "주방·욕실"};
+          // 기존 미니룸 가구 비례에 맞춘 축소율과 반 칸(8px) 단위 점유 범위.
+          const compact = {
+            menuboard: [0.68, 2, 2], musicstand: [0.70, 2, 2],
+            recordbin: [0.65, 4, 2], aquatable: [0.68, 4, 3],
+            rotatingbookcase: [0.70, 3, 3], stainedpartition: [0.70, 4, 1],
+            apothecary: [0.69, 4, 2], rolltop: [0.72, 4, 3],
+            towelrail: [0.67, 2, 1]
+          };
+          const tops = {aquatable: 21, rotatingbookcase: (x,y) => x === 1 && y === 1 ? 45 : null, apothecary: 40,
+            rolltop: (x,y,w,d) => y === d-1 && x >= 1 && x < w-1 ? 19 : null};
+          const names = {
+            menuboard: ["나무 틀", "칠판"], musicstand: ["스탠드", "악보"],
+            recordbin: ["수납장", "레코드"], aquatable: ["수조 틀", "모래"],
+            rotatingbookcase: ["책장", "책"], stainedpartition: ["틀", "유리"],
+            apothecary: ["수납장", "손잡이"], rolltop: ["책상", "편지 칸"], towelrail: ["사다리", "수건"]
+          };
+          function item(id,g,n,desc,w,d,A,build) {
+            const raw=build();
+            const x0=Math.min(...raw.map(b=>b.x)), y0=Math.min(...raw.map(b=>b.y)), z0=Math.min(0,...raw.map(b=>b.z));
+            const x1=Math.max(...raw.map(b=>b.x+b.w)), y1=Math.max(...raw.map(b=>b.y+b.d));
+            const [target,fw,fd]=compact[id];
+            const scale=Math.min(target,fw*G/(x1-x0),fd*G/(y1-y0));
+            const cx=(x0+x1)/2, cy=(y0+y1)/2;
+            const model=()=>build().map(b=>({...b, x:fw*G/2+(b.x-cx)*scale, y:fd*G/2+(b.y-cy)*scale, z:(b.z-z0)*scale, w:b.w*scale, d:b.d*scale, h:b.h*scale}));
+            const t=tops[id];
+            const top=typeof t==='function' ? (...args)=>{const h=t(...args);return h==null?null:(h-z0)*scale;} : t==null?null:(t-z0)*scale;
+            ITEMS[id]={n,c:category[id],L:"f",w:Math.ceil(fw/2),d:Math.ceil(fd/2),fw,fd,ns:1,A,b:model,pn:names[id],...(top!=null ? {top} : {})};
+          }
+item('menuboard','cafe','메뉴 입간판','오늘의 메뉴와 작은 그림을 적은 양면 입간판.',1,1,'#bc8f61',()=>[
+ B(1,1,0,2,2,27,'A'),B(13,1,0,2,2,27,'A'),...line(2,2,27,2,13,0,1.7,'A'),...line(14,2,27,14,13,0,1.7,'A'),B(0,0,5,16,3,24,'A'),B(2,2.5,7,12,.7,20,'#394b47'),B(4,3.3,23,8,.3,1,C.cream),B(4,3.3,19,5,.3,.7,C.cream),B(4,3.3,16,8,.3,.7,C.cream),B(4,3.3,13,6,.3,.7,C.cream),B(4,3.3,9,8,.3,.7,C.gold)
+]);
+item('musicstand','music','악보대','펼친 악보를 받쳐 둔 높고 가는 스탠드.',1,1,'#535b64',()=>[
+ ...line(7,7,3,0,14,0,1.2,'A'),...line(7,7,3,14,14,0,1.2,'A'),...line(7,7,3,7,0,0,1.2,'A'),cy(6.5,6.5,2,1,1,25,'A'),B(-2,5,24,20,2,15,'A'),B(0,7,25,8,.5,12,C.cream,{t:'preview_paper'}),B(9,7,25,7,.5,12,C.cream,{t:'preview_paper'}),B(-2,5,24,20,5,1,'A')
+]);
+item('recordbin','music','레코드 수납장','커버를 넘겨 고르는 레코드 가게식 진열함.',3,2,'#a17d5e',()=>{
+ const b=[...legs(42,24,11,C.ink),B(0,0,11,42,24,2,'A'),B(0,0,12,42,2,12,'A'),B(0,22,12,42,2,7,'A'),B(0,0,12,2,24,13,'A'),B(40,0,12,2,24,13,'A'),B(20,0,12,1.5,24,11,'A')];for(let j=0;j<2;j++)for(let i=0;i<7;i++)b.push(B(3+j*20,3+i*2.5,13,15,1,13,[C.blue,C.pink,C.cream,C.green,C.gold,C.ink,C.cream][i]));b.push(ball(7,19.2,16,6,.7,6,C.pink),ball(27,19.2,16,6,.7,6,C.blue));return b
+});
+item('aquatable','furniture','수족관 테이블','물고기가 보이는 수조 위에 유리 상판을 얹은 탁자.',3,2,'#8ea9a2',()=>{
+ const b=[...feet(39,28),B(0,0,3,39,28,3,'a'),B(2,2,6,35,24,1,'#cebfa3'),B(1,1,19,37,1,1,'A'),B(1,26,19,37,1,1,'A'),B(1,1,19,1,26,1,'A'),B(37,1,19,1,26,1,'A')];for(let i=0;i<7;i++)b.push(ball(5+i*4.5,4+(i%3)*6,7,3,3,1.5,'#c2b294'));for(let i=0;i<4;i++)b.push(ball(5+i*2,4,7,1.5,3,5+i,C.green));b.push(ball(20,12,11,5,2,3,C.gold),ball(13,19,14,4,2,2,C.pink),B(1,1,6,1,26,13,'A'),B(37,1,6,1,26,13,'A'),glass(1,26,6,37,.6,13),glass(37,1,6,.6,25,13),glass(-2,-2,20,43,32,1));return b
+},true);
+item('rotatingbookcase','furniture','회전 책장','둥근 선반에 사방으로 책을 꽂는 원통형 책장.',2,2,'#af865d',()=>{
+ const b=[cy(2,2,0,23,23,2,'a'),cy(1,1,2,25,25,1,'A'),cy(10.8,10.8,3,5.4,5.4,40,'A')];
+ const colors=[C.pink,C.blue,C.green,C.gold,'#e7cab5'];
+ for(let j=0;j<3;j++){
+  const z=4+j*13;
+  b.push(cy(0,0,z,27,27,1.6,'A'));
+  // 네 방향에 책등을 바깥으로 둔 작은 책 묶음.
+  for(let side=0;side<4;side++)for(let i=0;i<4;i++){
+   const u=9.1+i*2.25, h=7+((i+side+j)%3)*1.2, c=colors[(i+side+j*2)%colors.length];
+   const [x,y,w,d]=side===0?[u,3,1.9,5]:side===1?[19,u,5,1.9]:side===2?[u,19,1.9,5]:[3,u,5,1.9];
+   b.push(B(x,y,z+1.6,w,d,h,c));
+  }
+ }
+ b.push(cy(0,0,43,27,27,1.4,'A'),cy(.7,.7,44.4,25.6,25.6,.6,'A'));
+ return b
+});
+item('stainedpartition','furniture','스테인드글라스 파티션','빛깔 있는 작은 유리 조각으로 나누는 공간.',3,1,'#987852',()=>{
+ const b=[];const colors=['#b9d4c2','#d3b1b1','#e6ce8d','#a3bdcd','#c8b8d7'];for(let k=0;k<3;k++){const y=k%2?3:0,x=k*15;b.push(B(x,y,0,1.5,3,41,'A'),B(x+13,y,0,1.5,3,41,'A'),B(x,y,39,15,3,2,'A'),B(x,y,4,15,3,2,'A'));for(let j=0;j<5;j++)for(let i=0;i<2;i++)b.push(B(x+1.5+i*6,y+.7,6+j*6.4,5.6,1.4,6,colors[(i+j+k)%5]))}return b
+});
+item('apothecary','furniture','약방 수납장','작은 서랍과 라벨 손잡이가 빼곡한 빈티지 수납장.',3,1,'#a87d56',()=>{
+ const b=[B(0,0,2,43,15,36,'a'),B(-1,-1,38,45,17,2,'A'),...feet(43,15)];for(let j=0;j<5;j++)for(let i=0;i<6;i++){let x=1+i*7,z=3+j*7;b.push(B(x,14.5,z,6.2,1.4,6,'A'),B(x+1.5,16,z+3,3.2,.5,1.6,C.gold),B(x+2,16.6,z+3.2,2.2,.4,.7,C.cream))}return b
+});
+item('rolltop','furniture','롤탑 책상','곡선 덮개 아래 편지 칸이 숨어 있는 고전적인 책상.',3,2,'#b08861',()=>{
+ const b=[...table(43,26,19,'A'),B(0,0,19,43,2,18,'A'),B(0,0,19,2,26,13,'A'),B(41,0,19,2,26,13,'A'),B(2,1,21,39,8,10,'a')];for(let i=0;i<7;i++)b.push(B(3+i*5.5,2,22,4.7,7,6,C.cream));for(let i=0;i<9;i++){let y=i*1.45,z=35-Math.pow(i/8,2)*6;b.push(B(0,y,z,43,1.3,1.3,'A'))}b.push(B(14,17,19,13,7,.4,C.cream),B(30,12,19,3,3,4,C.ink));return b
+});
+item('towelrail','furniture','수건 사다리','걸쳐 둔 수건의 길이와 색으로 꾸미는 욕실 가구.',2,1,'#b98c61',()=>{
+ const b=[B(0,1,0,2,2,39,'A'),B(21,1,0,2,2,39,'A')];for(let j=0;j<4;j++)b.push(B(0,1,7+j*9,23,2,1.6,'A'));b.push(B(4,3,13,14,1,19,C.cream,{t:'preview_cloth'}),B(5,4.2,7,12,1,15,'#8daeb6',{t:'preview_cloth'}),B(5,5.3,8,12,.6,1,C.cream));return b
+});
+        }
+        // 널부러진 옷가지 · 생활감 소품
+        // 대각선으로 늘어진 소매·바짓단처럼 비스듬한 천을 작은 둥근 덩어리를 이어 그린다.
+        const messStrip = (ax, ay, bx, by, r, h, c, z = 0, o = {}) => {
+          const n = Math.max(1, Math.ceil(Math.hypot(bx - ax, by - ay) / (r * 0.4)));
+          return Array.from({ length: n + 1 }, (_, i) =>
+            B(ax + ((bx - ax) * i) / n - r / 2, ay + ((by - ay) * i) / n - r / 2, z, r, r, h, c, { sph: "dome", ...o }),
+          );
+        };
+        const messRing = (cx, cy, z, rx, ry, n, s, c, a0 = 0) =>
+          Array.from({ length: n }, (_, i) => {
+            const a = a0 + (i / n) * Math.PI * 2;
+            return B(cx + Math.cos(a) * rx - s / 2, cy + Math.sin(a) * ry - s / 2, z, s, s, s, c, { sph: 1 });
+          });
+        Object.assign(TX, {
+          // 한 조각 먹은 피자: 앞쪽 부채꼴을 비우고 윗면에 페퍼로니와 크러스트를 그린다.
+          pizzaO: (x, y, z, f, b) => {
+            const u = (x - b.w / 2) / (b.w / 2),
+              v = (y - b.d / 2) / (b.d / 2),
+              a = Math.atan2(v, u),
+              r = Math.hypot(u, v);
+            if (a > 0.3 && a < 1.35) return null;
+            if (ORBN[2] < 0.98) return hex("#d9954a");
+            if (r > 0.84) return hex("#d9954a");
+            for (const [pu, pv] of [[-0.45, -0.3], [0.1, -0.55], [-0.15, 0.35], [0.5, -0.1], [-0.55, 0.25]])
+              if (Math.hypot(u - pu, v - pv) < 0.17) return hex("#c94a3a");
+            return H3(x | 0, y | 0, 7) % 9 === 0 ? lerp(b.c, K.white, 0.35) : b.c;
+          },
+          // 국물이 남은 컵라면
+          ramenO: capT((b, x, y) => (Math.sin(x * 2.2 + Math.cos(y * 1.7) * 2) > 0.55 ? hex("#f2d58a") : hex("#c9793e"))),
+          // 휴대폰 화면
+          phoneScr: (x, y, z, f, b) => (f === "T" && x > 0.4 && x < b.w - 0.4 && y > 0.5 && y < b.d - 0.6 ? hex("#8fc4e8") : b.c),
+        });
+
+        ITEMS.clothespile = {
+          n: "널부러진 옷가지", c: "소품", L: "f", w: 2, d: 1, fw: 3, fd: 2, ns: 1, A: "#9aada0", sec: "#6c8db5", pn: ["윗옷", "바지"],
+          b: () => [
+            // 바지: 허리춤은 구겨져 있고, 한쪽 다리는 곧게, 다른 쪽은 무릎이 꺾여 있다
+            B(11.8, 1.6, 0, 8, 5.6, 2.3, "#6c8db5", { sph: "dome", t: "preview_cloth" }),
+            B(12.4, 1.8, 1.9, 6.8, 1.2, 0.6, "#4f6f99", { sph: "dome" }),
+            B(18.2, 2.2, 2, 1, 1, 0.6, "#d9a840", { sph: 1 }),
+            ...messStrip(14, 6.2, 14.4, 13.4, 3.8, 1.8, "#6c8db5", 0, { t: "preview_cloth" }),
+            B(12.6, 12.6, 0.4, 3.8, 3, 1.6, "#a9c0dc", { sph: "dome" }),
+            ...messStrip(18, 6, 20.6, 10.2, 3.8, 1.8, "#6c8db5", 0, { t: "preview_cloth" }),
+            ...messStrip(20.6, 10.2, 22, 6.4, 3.6, 1.7, "#6c8db5", 0.3, { t: "preview_cloth" }),
+            B(20.2, 4.2, 0.6, 3.6, 3, 1.6, "#a9c0dc", { sph: "dome" }),
+            // 니트: 몸판은 구겨지고, 한쪽 소매는 앞으로 뻗고 다른 소매는 몸판 위로 접혀 있다
+            B(0.6, 2, 0, 11.2, 9, 2.6, "A", { sph: "dome", t: "preview_cloth" }),
+            B(1.2, 7.4, 1, 10, 3, 1.8, "a", { sph: "dome", t: "preview_cloth" }),
+            B(3.4, 2.4, 2.2, 4, 2.2, 0.6, "a", { sph: "cyl" }),
+            ...messStrip(2.6, 10, 1.9, 14.2, 3.8, 1.8, "A", 0, { t: "preview_cloth" }),
+            B(0.2, 13, 0.5, 3.4, 2.8, 1.6, "L", { sph: "dome" }),
+            ...messStrip(10.2, 3.6, 6.6, 7, 3.4, 1.6, "A", 1.8, { t: "preview_cloth" }),
+            B(4.6, 6.4, 2.9, 3, 2.8, 1.2, "L", { sph: "dome" }),
+            // 벗어 던진 양말 한 짝과 돌돌 말린 한 짝
+            ...messStrip(7, 13.6, 10.6, 14.6, 2.4, 1.2, "#f4ebdc"),
+            B(5.6, 12.3, 0, 2.6, 2.6, 1.3, "#e86a8a", { sph: "dome" }),
+            B(20.6, 12.4, 0, 3.2, 3, 2.6, "#f4ebdc", { sph: 1 }),
+            B(21, 12.8, 2, 2.4, 2.2, 0.8, "#e86a8a", { sph: "dome" }),
+          ],
+        };
+
+        ITEMS.messsocks = {
+          n: "벗어 둔 양말", c: "소품", L: "f", w: 1, d: 1, fw: 2, fd: 1, A: "#f4efe6", sec: "#e86a8a", pn: ["양말", "줄무늬"],
+          b: () => [
+            // 길게 늘어진 한 짝
+            ...messStrip(1.6, 6, 6, 2.6, 2.6, 1.3, "A"),
+            ...messStrip(6, 2.6, 8.4, 4.6, 2.8, 1.4, "A"),
+            B(0.4, 4.8, 0.2, 2.6, 2.6, 1.4, "#e86a8a", { sph: "dome" }),
+            B(7.6, 3.8, 0.4, 2, 1.8, 1.2, "a", { sph: "dome" }),
+            // 뒤집힌 채 뭉친 한 짝
+            B(10, 1.8, 0, 5.2, 4.6, 2.6, "A", { sph: 1 }),
+            B(10.6, 2.2, 1.6, 3.2, 3, 1.4, "#e86a8a", { sph: "dome" }),
+            B(13.4, 4, 0, 2.2, 2.6, 1.3, "a", { sph: "dome" }),
+          ],
+        };
+
+        ITEMS.paperballs = {
+          n: "구겨진 종이 뭉치", c: "소품", L: "f", w: 1, d: 1, fw: 2, fd: 2, A: "#f7f3ea", pn: ["종이 뭉치", "메모지"],
+          b: () => [
+            B(7.5, 7.8, 0, 7, 5.6, 0.3, "#ffffff", { t: "pages" }),
+            B(9, 9, 0.3, 4.4, 0.4, 0.1, "#9ab0d0"),
+            B(9, 10.4, 0.3, 3.4, 0.4, 0.1, "#9ab0d0"),
+            B(1, 2, 0, 4.4, 4.4, 4, "A", { sph: 1, t: "facetO" }),
+            B(6.4, 1, 0, 3.6, 3.6, 3.3, "A", { sph: 1, t: "facetO" }),
+            B(2.4, 8.6, 0, 3.8, 3.8, 3.4, "#fff3a8", { sph: 1, t: "facetO" }),
+            B(11.4, 3.4, 0, 3, 3, 2.8, "A", { sph: 1, t: "facetO" }),
+            B(4.6, 5.4, 0, 2.8, 2.8, 2.5, "A", { sph: 1, t: "facetO" }),
+          ],
+        };
+
+        ITEMS.pizzabox = {
+          n: "먹다 남은 피자", c: "탁상 소품", L: "f", w: 1, d: 1, A: "#d9b07a", sec: "#ffd36b", pn: ["상자", "치즈"],
+          b: () => [
+            B(1, 1.5, 0, 14, 13.5, 1.6, "A", { t: "tape" }),
+            B(1, 1, 1.6, 14, 1, 13, "A"),
+            B(5, 1.9, 6, 6, 0.2, 5, "#c94f5d"),
+            B(6.2, 2, 7.2, 3.6, 0.2, 2.6, "#f4efe6"),
+            B(2.6, 3.4, 1.6, 11, 10.5, 1.1, "#ffd36b", { sph: "cyl", t: "pizzaO" }),
+            // 상자 가장자리에 걸친 한 조각
+            B(10.8, 11.4, 1.6, 4.4, 3.6, 0.9, "#ffd36b", { sph: "dome" }),
+            B(14, 12, 1.6, 1.4, 3, 1.2, "#d9954a"),
+            B(12, 12.2, 2.3, 1, 1, 0.3, "#c94a3a", { sph: "cyl" }),
+          ],
+        };
+
+        ITEMS.cupramen = {
+          n: "컵라면", c: "탁상 소품", L: "f", w: 1, d: 1, fw: 1, fd: 1, A: "#f4efe6", sec: "#e8503a", pn: ["컵", "띠"],
+          b: () => [
+            B(1.4, 1.6, 0, 5, 5, 5.2, "A", { sph: "cyl", t: "ramenO" }),
+            B(1.3, 1.5, 1.4, 5.2, 5.2, 1.8, "#e8503a", { sph: "cyl" }),
+            B(1.2, 1.4, 5, 5.4, 5.4, 0.4, "L", { sph: "cyl", t: "ramenO" }),
+            // 반쯤 뜯어 올린 뚜껑
+            B(1.6, 1, 5.3, 4.6, 0.5, 2.6, "#f0d890"),
+            B(2.6, 0.9, 6.4, 2.4, 0.2, 1, "#e8503a"),
+            // 위에 걸쳐 둔 젓가락
+            B(0.4, 4, 5.6, 7.4, 0.5, 0.5, "#c98d55"),
+            B(0.6, 4.9, 5.6, 7.2, 0.5, 0.5, "#c98d55"),
+          ],
+        };
+
+        ITEMS.emptycans = {
+          n: "빈 음료 캔", c: "탁상 소품", L: "f", w: 1, d: 1, fw: 2, fd: 1, A: "#e83a4a", sec: "#5fb0a0", pn: ["캔", "다른 캔"],
+          b: () => [
+            B(1, 1, 0, 3.4, 3.4, 5.6, "A", { sph: "cyl" }),
+            B(1.1, 1.1, 5.6, 3.2, 3.2, 0.4, "#c8ccd0", { sph: "cyl" }),
+            B(1, 1, 2.2, 3.4, 3.4, 1, "#ffffff", { sph: "cyl" }),
+            B(4.8, 3.8, 0, 3.4, 3.4, 5.6, "#5fb0a0", { sph: "cyl" }),
+            B(4.9, 3.9, 5.6, 3.2, 3.2, 0.4, "#c8ccd0", { sph: "cyl" }),
+            B(4.8, 3.8, 3, 3.4, 3.4, 0.8, "#ffe28a", { sph: "cyl" }),
+            // 옆으로 쓰러진 캔
+            B(9.4, 2.4, 0, 5.4, 3.4, 3.4, "A", { sph: 1 }),
+            B(9.8, 2.4, 0.1, 4.6, 3.4, 3.3, "A"),
+            B(14.2, 2.6, 0.2, 0.6, 3, 3, "#c8ccd0", { sph: "cyl" }),
+            B(11.4, 2.4, 0.1, 1, 3.4, 3.3, "#ffffff"),
+          ],
+        };
+
+        ITEMS.snackbag = {
+          n: "뜯은 과자 봉지", c: "탁상 소품", L: "f", w: 1, d: 1, fw: 1, fd: 1, A: "#ff9a3a", sec: "#ffe28a", pn: ["봉지", "과자"],
+          b: () => [
+            B(0.4, 0.6, 0, 6, 5, 2, "A", { sph: "dome" }),
+            B(0.2, 0.6, 0, 0.8, 5, 1, "a"),
+            B(5.8, 0.4, 0, 1, 5.4, 1.8, "L"),
+            B(2, 1.8, 1.7, 2.6, 2.4, 0.3, "#fff3c8", { sph: "cyl" }),
+            B(2.6, 2.4, 1.95, 1.4, 1.2, 0.1, "#c94f5d"),
+            B(6.2, 5, 0, 1.6, 1.4, 0.7, "#ffe28a", { sph: 1, t: "facetO" }),
+            B(4.2, 6, 0, 1.6, 1.4, 0.7, "#ffe28a", { sph: 1, t: "facetO" }),
+            B(6.6, 6.6, 0, 1.2, 1.1, 0.6, "#ffe28a", { sph: 1, t: "facetO" }),
+          ],
+        };
+
+        ITEMS.tangledcable = {
+          n: "엉킨 충전선", c: "탁상 소품", L: "f", w: 1, d: 1, fw: 2, fd: 1, A: "#f4efe6", sec: "#3a3a44", pn: ["선", "휴대폰"],
+          b: () => [
+            // 엎어 둔 휴대폰
+            B(0.6, 1, 0, 3.4, 6, 0.8, "#3a3a44", { t: "phoneScr" }),
+            ...messStrip(2.3, 6.8, 4.6, 5.2, 0.7, 0.6, "A", 0),
+            ...messRing(7, 4, 0, 2.6, 1.8, 14, 0.75, "A", 0.3),
+            ...messRing(8.4, 3.6, 0.2, 1.8, 1.4, 11, 0.75, "A", 1.2),
+            ...messRing(6.6, 4.8, 0.4, 1.6, 1.2, 10, 0.7, "A", 2),
+            ...messStrip(10.2, 3.6, 12.2, 4.2, 0.7, 0.6, "A", 0),
+            // 충전기
+            B(12, 2.6, 0, 3.2, 3, 2.6, "A"),
+            B(15.2, 3.4, 0.8, 0.6, 0.5, 0.5, "#c8ccd0"),
+            B(15.2, 4.4, 0.8, 0.6, 0.5, 0.5, "#c8ccd0"),
+          ],
+        };
+
+        ITEMS.dryingrack = {
+          n: "빨래 건조대", c: "수납", L: "f", w: 2, d: 1, A: "#dfe4e8", sec: "#ffb0c4", pn: ["건조대", "티셔츠"],
+          b: () => [
+            // 접이식 프레임
+            B(0, 1, 0, 1.2, 14, 1.2, "A"), B(30.8, 1, 0, 1.2, 14, 1.2, "A"),
+            B(0, 7.4, 0, 1.2, 1.2, 22, "A"), B(30.8, 7.4, 0, 1.2, 1.2, 22, "A"),
+            ...[2.4, 7.6, 12.8].map((y) => B(0, y, 21.6, 32, 0.7, 0.7, "A")),
+            B(0, 2.4, 21.6, 1.2, 11, 0.7, "A"), B(30.8, 2.4, 21.6, 1.2, 11, 0.7, "A"),
+            // 걸쳐 둔 수건
+            B(2.4, 1.6, 11, 10, 2.3, 11.2, "#8fd07a", { t: "preview_cloth" }),
+            B(2.4, 1.6, 10.6, 10, 2.3, 0.8, "#f4efe6"),
+            // 티셔츠
+            B(14.6, 6.8, 12.2, 8.4, 2.3, 9.9, "#ffb0c4", { t: "preview_cloth" }),
+            B(12.6, 6.8, 16.6, 2.4, 2.3, 5.5, "#ffb0c4", { t: "preview_cloth" }),
+            B(22.6, 6.8, 16.6, 2.4, 2.3, 5.5, "#ffb0c4", { t: "preview_cloth" }),
+            B(17.6, 6.7, 20.4, 2.4, 0.3, 1.2, "#e08aa0"),
+            // 양말 두 짝과 집게
+            B(25.2, 12, 14.2, 1.8, 2.2, 7.6, "#f4efe6"),
+            B(25.2, 12, 14.2, 3.4, 2.2, 1.8, "#f4efe6"),
+            B(28.2, 12, 15.6, 1.8, 2.2, 6.2, "#6fa2e8"),
+            B(28.2, 12, 15.6, 3, 2.2, 1.8, "#6fa2e8"),
+            B(25.6, 12.4, 21.8, 0.9, 1.4, 1.4, "#ffcf6b"),
+            B(28.6, 12.4, 21.8, 0.9, 1.4, 1.4, "#ffcf6b"),
+            B(6.6, 1.2, 21.8, 0.9, 1.4, 1.4, "#ffcf6b"),
+          ],
+        };
+
+        ITEMS.clothchair = {
+          n: "옷 걸친 의자", c: "소파·의자", L: "f", w: 1, d: 1, A: "#9a7fe0", sec: "#6c8db5", pn: ["겉옷", "바지"],
+          b: () => [
+            ...legs([[2, 2], [12, 2], [2, 12], [12, 12]], 8, "#8f6440"),
+            B(2, 2, 8, 12, 12, 2, WOOD),
+            B(2, 2, 10, 12, 2, 12, WOOD),
+            B(2, 2, 22, 12, 2, 2, "#d9b085"),
+            // 등받이를 덮은 카디건
+            B(1.6, 0.8, 14.5, 12.8, 4.4, 9.4, "A", { t: "preview_cloth" }),
+            B(1.6, 0.8, 22.6, 12.8, 4.4, 2.6, "A", { sph: "dome", t: "preview_cloth" }),
+            B(5.6, 4.6, 16, 1.2, 0.4, 7, "a"),
+            ...[17.5, 20].map((z) => B(6.6, 4.9, z, 0.8, 0.4, 0.8, "#f4efe6", { sph: 1 })),
+            B(0.2, 2, 3.6, 2.2, 2.8, 15, "A", { t: "preview_cloth" }),
+            B(0.1, 1.9, 3, 2.4, 3, 1.4, "L"),
+            // 의자 위에 대충 던진 바지
+            B(3, 4.6, 10, 9, 8, 2.4, "#6c8db5", { sph: "dome", t: "preview_cloth" }),
+            B(8, 9, 11.4, 5, 4, 1.6, "#6c8db5", { sph: "dome", t: "preview_cloth" }),
+            B(9, 13.4, 3, 3.6, 1.6, 8.4, "#6c8db5", { t: "preview_cloth" }),
+            B(9, 13.4, 3, 3.6, 1.6, 1.2, "#a9c0dc"),
+          ],
+        };
+
+        ITEMS.flipslippers = {
+          n: "뒤집힌 슬리퍼", c: "소품", L: "f", w: 1, d: 1, fw: 2, fd: 2, A: "#6fa2e8", pn: ["슬리퍼", "밑창"],
+          b: () => [
+            // 바로 놓인 한 짝
+            B(1, 1, 0, 5.2, 10.4, 1.2, "#f4efe6", { sph: "cyl" }),
+            B(0.9, 1.4, 1, 5.4, 4.6, 2.8, "A", { sph: "dome", t: "preview_cloth" }),
+            B(2.6, 2.4, 3.4, 2, 1.4, 0.7, "#ffffff", { sph: 1 }),
+            // 뒤집혀서 밑창이 보이는 한 짝
+            B(9, 6.6, 0, 4.4, 5.2, 1.6, "A", { sph: "dome" }),
+            B(5.6, 6.2, 1.4, 10.4, 5.4, 1.2, "#c9b391", { sph: "cyl" }),
+            ...[7.4, 9.2, 11, 12.8].map((x) => B(x, 7.4, 2.55, 0.7, 3, 0.1, "#a8946f")),
+          ],
+        };
+
+        ITEMS.dishstack = {
+          n: "쌓아 둔 그릇", c: "주방·욕실", L: "f", w: 1, d: 1, fw: 1, fd: 1, A: "#a8d0e0", pn: ["그릇", "위 그릇"],
+          b: () => [
+            B(0, 0.4, 0, 7.4, 7.4, 0.5, "#f4efe6", { sph: "cyl", t: "emptyO" }),
+            B(0.8, 0, 0.5, 7.2, 7.2, 0.5, "#f4efe6", { sph: "cyl", t: "emptyO" }),
+            B(1.2, 1, 1, 6.2, 6.2, 1.8, "A", { sph: "cyl", t: "emptyO" }),
+            B(1, 0.8, 2.6, 6.6, 6.6, 0.4, "L", { sph: "cyl", t: "emptyO" }),
+            B(3.6, -0.6, 2.4, 0.5, 6, 0.4, "#c98d55"),
+            B(4.4, -0.4, 2.4, 0.5, 6, 0.4, "#c98d55"),
+          ],
+        };
+        // ── 정원·물 추가 5종 ──
+        ITEMS.birdbath = {
+          anim: 1, n: "새 물받이", c: "정원·물", L: "f", w: 1, d: 1, A: "#c8c4ba", sec: "#7aa0e0", pn: ["돌", "새"],
+          b: () => [
+            B(3.5, 3.5, 0, 9, 9, 2, "A", { t: "stoneO" }),
+            B(6, 6, 2, 4, 4, 9.5, "A", { sph: "cyl", t: "stoneO" }),
+            B(4.5, 4.5, 10.5, 7, 7, 1.6, "A", { sph: "cyl", t: "stoneO" }),
+            B(1, 1, 12, 14, 14, 2.6, "A", { sph: "cyl", t: "stoneO" }),
+            B(2.2, 2.2, 14, 11.6, 11.6, 0.8, "#5fb8d8", { sph: "cyl", t: "pondW" }),
+            B(1, 1, 14, 14, 14, 1.2, "L", { sph: "tube" }),
+            // 물가에 앉은 작은 새
+            B(9.6, 3, 15, 3.6, 2.6, 2.8, "#7aa0e0", { sph: 1 }),
+            B(8.6, 3.4, 16.2, 1.8, 1.8, 1, "#5a80c0", { sph: 1 }),
+            B(11.6, 3.3, 16.8, 2.2, 2.1, 2.2, "#7aa0e0", { sph: 1 }),
+            B(13.6, 4, 17.6, 1.1, 0.7, 0.6, "#ffb040"),
+            B(12.6, 5.3, 18, 0.5, 0.3, 0.6, "#222222"),
+            B(10.4, 5.4, 15.6, 1.8, 0.4, 1.4, "#ffffff"),
+          ],
+        };
+        ITEMS.gnome = {
+          n: "정원 난쟁이", c: "정원·물", L: "f", w: 1, d: 1, A: "#e04a4a", sec: "#4f7cc4", pn: ["모자", "옷"],
+          b: () => [
+            B(4, 7.5, 0, 3.4, 4.4, 2, "#6b4a2a", { sph: "dome" }),
+            B(8.6, 7.5, 0, 3.4, 4.4, 2, "#6b4a2a", { sph: "dome" }),
+            B(4, 4, 1, 8, 7.6, 8, "#4f7cc4", { sph: 1 }),
+            B(3.6, 4.4, 6.6, 8.8, 7.2, 1.4, "#6b4a2a", { sph: "cyl" }),
+            B(2.4, 6.4, 4.4, 2.6, 2.8, 4, "#4f7cc4", { sph: 1 }),
+            B(11, 6.4, 4.4, 2.6, 2.6, 4, "#4f7cc4", { sph: 1 }),
+            B(5, 4.6, 8.4, 6, 6, 5, "#f2c8a8", { sph: 1 }),
+            B(5.2, 9, 5.8, 5.6, 2.8, 6, "#f4efe6", { sph: 1 }),
+            B(7, 10.2, 10, 2, 1.8, 1.8, "#f09a90", { sph: 1 }),
+            B(6.2, 10, 11.6, 0.7, 0.4, 0.7, "#222222"),
+            B(9.1, 10, 11.6, 0.7, 0.4, 0.7, "#222222"),
+            B(4.4, 4, 12.4, 7.2, 7.2, 2.6, "A", { sph: "cyl" }),
+            B(5.2, 4.8, 14.8, 5.6, 5.6, 2.6, "A", { sph: "cyl" }),
+            B(6, 5.6, 17.2, 4, 4, 2.4, "A", { sph: "cyl" }),
+            B(6.8, 6.4, 19.4, 2.4, 2.4, 2, "A", { sph: "cyl" }),
+            B(7.4, 7, 21.2, 1.4, 1.4, 1.6, "A", { sph: 1 }),
+          ],
+        };
+        ITEMS.creekbridge = {
+          anim: 1, n: "개울과 나무다리", c: "정원·물", L: "f", w: 2, d: 1, A: "#c8503c", pn: ["난간", "다리 판"],
+          b: () => {
+            const r = [
+              B(9, 0, 0, 14, 16, 1, "#6fc4e4", { t: "waterT" }),
+            ];
+            for (const [x, y, s, c] of [[7.6, 0.6, 3, "#a8a49c"], [7.2, 4.6, 2.6, "#8a867e"], [7.8, 9.6, 3.2, "#c0bcb2"], [7.4, 13.4, 2.4, "#9a968c"],
+              [21.6, 1.4, 2.8, "#8a867e"], [21.4, 6, 3.2, "#c0bcb2"], [21.8, 10.6, 2.6, "#a8a49c"], [21.2, 13.6, 2.4, "#9a968c"]])
+              r.push(B(x, y, 0, s, s, s * 0.6, c, { sph: "dome", t: "stoneO" }));
+            r.push(lf(6.6, 3, 0, "z", 5, 1.6, G2), lf(5.8, 12.4, 0, "z", 6, 1.6, G1), lf(25, 4, 0, "z", 5, 1.6, G3), lf(25.6, 14, 0, "z", 4.6, 1.6, G2));
+            // 아치 모양으로 휜 다리 판
+            const zOf = (x) => Math.sin((Math.PI * (x + 1)) / 32) * 6;
+            for (let i = 0; i < 16; i++) r.push(B(i * 2, 3.5, zOf(i * 2), 2, 9, 1.6, i % 2 ? "#d9b085" : "#cfa577"));
+            for (const y of [3.2, 11.8]) {
+              for (const x of [1, 8, 15, 22, 29]) r.push(B(x, y, zOf(x), 1.4, 1.2, 6.4, "A"));
+              for (let i = 0; i < 16; i++) r.push(B(i * 2, y, zOf(i * 2) + 5.4, 2, 1.2, 1.2, "A"));
+            }
+            return r;
+          },
+        };
+        ITEMS.lilyjar = {
+          anim: 1, n: "수련 항아리", c: "정원·물", L: "f", w: 1, d: 1, A: "#5f8a9a", pn: ["항아리", "물"],
+          b: () => [
+            B(3, 3, 0, 10, 10, 1.2, "a", { sph: "cyl" }),
+            B(1.2, 1.2, 1, 13.6, 13.6, 7, "A", { sph: "cyl" }),
+            B(2.2, 2.2, 7.4, 11.6, 11.6, 0.8, "#4fa8c8", { sph: "cyl", t: "pondW" }),
+            B(1.2, 1.2, 7.2, 13.6, 13.6, 1.4, "L", { sph: "tube" }),
+            B(3.2, 5.4, 8.2, 5, 4.4, 0.3, "#5fae5c", { sph: "cyl", t: "lilyO" }),
+            B(8.4, 8.6, 8.2, 4, 3.6, 0.3, "#4f9a4c", { sph: "cyl", t: "lilyO" }),
+            B(4.4, 6.2, 8.4, 2.6, 2.6, 1.8, "#ff9ab0", { sph: "dome" }),
+            B(5.2, 7, 9.6, 1, 1, 0.8, "#ffe28a", { sph: 1 }),
+            lf(10.4, 4.4, 8, "z", 9, 1.4, G1),
+            lf(11.8, 5.2, 8, "z", 6.5, 1.3, G2),
+          ],
+        };
+        ITEMS.picketfence = {
+          n: "하얀 울타리", c: "정원·물", L: "f", w: 2, d: 1, A: "#f4efe6", pn: ["울타리", "잔디"],
+          b: () => [
+            B(0, 9, 0, 32, 7, 0.6, "#5fae5c"),
+            B(0, 7.6, 3.4, 32, 1, 1.6, "a"),
+            B(0, 7.6, 9, 32, 1, 1.6, "a"),
+            ...[0.6, 5.2, 9.8, 14.4, 19, 23.6, 28.2].flatMap((x) => [
+              B(x, 6.4, 0, 3.2, 1.2, 12.6, "A"),
+              B(x + 0.6, 6.4, 12.6, 2, 1.2, 1.2, "A"),
+              B(x + 1.1, 6.4, 13.8, 1, 1.2, 0.8, "A"),
+            ]),
+            ...[[2.6, 11, "#ff8aa0"], [4.2, 12.6, "#ffe28a"], [12.4, 11.6, "#9a7fe0"], [20.4, 12, "#ff8aa0"], [22, 10.8, "#ffffff"], [29, 12.4, "#ffe28a"]].flatMap(([x, y, c]) => [
+              lf(x, y, 0.6, "z", 3, 1.2, G2),
+              B(x - 1.2, y - 1.2, 3.2, 2.4, 2.4, 1.6, c, { sph: 1 }),
+            ]),
+            lf(8, 12.4, 0.6, "z", 2.6, 2.4, G3),
+            lf(26, 11.4, 0.6, "z", 2.4, 2.4, G1),
+          ],
+        };
+
+        // ── 인형·쿠션 추가 4종 ──
+        ITEMS.plushdog = {
+          n: "강아지 인형", c: "인형·쿠션", L: "f", w: 1, d: 1, A: "#ecd6b0", sec: "#a0703f", pn: ["몸", "귀"],
+          b: () => [
+            B(4, 4, 0, 8, 7, 7.6, "A", { sph: 1 }),
+            B(5.4, 8.4, 1.4, 5.2, 2.6, 4.6, "L", { sph: 1 }),
+            B(3.4, 9, 0, 3, 4.2, 2.6, "A", { sph: 1 }),
+            B(9.6, 9, 0, 3, 4.2, 2.6, "A", { sph: 1 }),
+            B(7, 1.6, 2, 2, 3, 2, "A", { sph: 1 }),
+            B(3.6, 4.4, 6.6, 8.8, 8, 7.4, "A", { sph: 1 }),
+            B(2.2, 6, 7.4, 2.4, 3.6, 6, "#a0703f", { sph: 1 }),
+            B(11.4, 6, 7.4, 2.4, 3.6, 6, "#a0703f", { sph: 1 }),
+            B(5.6, 10.2, 8, 4.8, 3, 3.2, "L", { sph: 1 }),
+            B(7.2, 12.6, 10, 1.6, 0.8, 1.1, "#222222", { sph: 1 }),
+            B(5.4, 11.4, 11.2, 0.8, 0.5, 1, "#222222"),
+            B(9.8, 11.4, 11.2, 0.8, 0.5, 1, "#222222"),
+            B(7.6, 12.4, 8.2, 0.8, 0.6, 0.9, "#ff8aa0"),
+            B(5, 10, 6.4, 6, 1.2, 1.2, "#5fb0a0"),
+            B(7.4, 10.8, 5.4, 1.2, 0.6, 1.2, "#ffcf6b", { sph: 1 }),
+          ],
+        };
+        ITEMS.penguin = {
+          n: "펭귄 인형", c: "인형·쿠션", L: "f", w: 1, d: 1, A: "#3a4560", sec: "#e04a4a", pn: ["몸", "목도리"],
+          b: () => [
+            B(4.6, 9, 0, 3, 3.6, 1.2, "#ffb040", { sph: "dome" }),
+            B(8.4, 9, 0, 3, 3.6, 1.2, "#ffb040", { sph: "dome" }),
+            B(3.6, 3.6, 0.6, 8.8, 8.8, 13, "A", { sph: 1 }),
+            B(5, 9.4, 1.4, 6, 3.6, 9.4, "#ffffff", { sph: 1 }),
+            B(2.2, 5.6, 3.6, 2.4, 3.4, 6.4, "A", { sph: 1 }),
+            B(11.4, 5.6, 3.6, 2.4, 3.4, 6.4, "A", { sph: 1 }),
+            B(3.4, 3.4, 8.4, 9.2, 9.2, 1.6, "#e04a4a", { sph: "cyl" }),
+            B(9.6, 10.4, 5, 2, 1, 4, "#e04a4a"),
+            B(6, 11.3, 10.6, 0.9, 0.6, 1.1, "#222222"),
+            B(9.1, 11.3, 10.6, 0.9, 0.6, 1.1, "#222222"),
+            B(7.1, 11.6, 9.4, 1.8, 1.6, 1, "#ffb040", { sph: 1 }),
+            B(4.9, 11, 9.4, 1.2, 0.5, 0.8, "#ff9ab0"),
+            B(10, 11, 9.4, 1.2, 0.5, 0.8, "#ff9ab0"),
+          ],
+        };
+        ITEMS.plushdino = {
+          n: "공룡 인형", c: "인형·쿠션", L: "f", w: 2, d: 1, A: "#7fc46c", sec: "#ffcf6b", pn: ["몸", "등 가시"],
+          b: () => [
+            // 꼬리 → 몸 → 목 → 머리 (오른쪽을 본다)
+            ...[[1, 6.4, 1.6, 3, 2.4], [3.4, 5.8, 1.4, 4, 3.2], [6.2, 5.2, 1.2, 5, 4.2]].map(([x, y, z, s, h]) => B(x, y, z, s * 1.1, s, h, "A", { sph: 1 })),
+            B(9, 3.6, 0.6, 13, 9, 9, "A", { sph: 1 }),
+            B(11, 8.8, 1.6, 9, 3.4, 6, "L", { sph: 1 }),
+            ...[[10.4, 3.6], [17.6, 3.6], [10.4, 9.8], [17.6, 9.8]].map(([x, y]) => B(x, y, 0, 3.4, 3, 3, "A", { sph: 1 })),
+            B(19, 5, 5, 5.6, 5.6, 7, "A", { sph: 1 }),
+            B(21.4, 4.4, 9, 9, 7, 6.4, "A", { sph: 1 }),
+            B(26.6, 5.4, 9.6, 3.6, 5, 3.4, "L", { sph: 1 }),
+            B(24.4, 10.8, 13, 0.9, 0.5, 1.2, "#222222"),
+            B(28.4, 9.6, 11.4, 1, 0.4, 0.5, "#222222"),
+            B(23.4, 10.6, 11.4, 1.4, 0.4, 0.8, "#ff9ab0"),
+            ...[[4.6, 3.6, 2], [8.2, 4.4, 2.6], [11.8, 9, 3], [15.6, 9.4, 3], [19.4, 8.8, 2.6], [22.6, 13.2, 2.2], [25.4, 14.6, 1.8]].map(([x, z, s]) =>
+              B(x, 7.2 - s / 2, z, s, s, s * 0.9, "#ffcf6b", { sph: "dome" }),
+            ),
+          ],
+        };
+        ITEMS.plushwhale = {
+          n: "고래 인형", c: "인형·쿠션", L: "f", w: 2, d: 1, A: "#7fb4ec", pn: ["몸", "배"],
+          // 얼굴이 보는 쪽(오른쪽 앞)을 향하도록 좌우를 뒤집어 놓는다
+          b: () => [
+            // 동글동글한 몸통과 짧게 위로 들린 꼬리
+            B(1.5, 1.5, 0, 17, 13, 11, "A", { sph: 1 }),
+            B(3, 8.6, 0.2, 12.4, 5.6, 5, "#f4efe6", { sph: 1 }),
+            B(16.4, 5, 1.6, 5, 6, 5, "A", { sph: 1 }),
+            B(20, 6, 3, 3.4, 4, 4, "A", { sph: 1 }),
+            B(21.4, 3.4, 5.8, 3.4, 4.4, 3.4, "A", { sph: 1 }),
+            B(21.4, 8.2, 5.8, 3.4, 4.4, 3.4, "A", { sph: 1 }),
+            B(7.6, 12.4, 1.4, 3.6, 2.6, 2, "A", { sph: 1 }),
+            // 큰 눈·볼터치·웃는 입
+            B(5.6, 12.6, 5.2, 2, 1.4, 2.4, "#222222", { sph: 1 }),
+            B(6.4, 13.7, 6.6, 0.7, 0.4, 0.7, "#ffffff"),
+            B(2.6, 12, 4.4, 2.2, 1.1, 1.3, "#ff9ab0", { sph: 1 }),
+            B(2.6, 12.6, 3.2, 0.6, 0.5, 0.5, "#3a3a44"),
+            B(3.1, 12.8, 2.8, 1.1, 0.5, 0.5, "#3a3a44"),
+            B(4, 12.6, 3.2, 0.6, 0.5, 0.5, "#3a3a44"),
+            // 머리 위 물방울 분수
+            B(7.4, 6.4, 11, 1.8, 1.8, 1.8, "#bfe6f8", { sph: 1 }),
+            B(5.6, 5.4, 12.6, 2, 2, 2, "#bfe6f8", { sph: 1 }),
+            B(9, 7.4, 12.6, 2, 2, 2, "#bfe6f8", { sph: 1 }),
+            B(7.3, 6.3, 13.4, 2.2, 2.2, 2.2, "#e4f6fd", { sph: 1 }),
+          ].map((q) => ({ ...q, x: 27 - q.x - q.w })),
+        };
+        // ── 상어 인형 ──
+        ITEMS.plushshark = {
+          n: "상어 인형", c: "인형·쿠션", L: "f", w: 2, d: 1, A: "#8fa4bc", sec: "#f4efe6", pn: ["몸", "배"],
+          b: () => [
+            // 꼬리지느러미 → 몸통 → 주둥이 (얼굴이 오른쪽 앞을 본다)
+            B(0.2, 6, 4.2, 3, 4, 7.4, "A", { sph: 1 }),
+            B(0.6, 6, 0.6, 2.6, 4, 3.6, "A", { sph: 1 }),
+            B(2, 5.4, 2, 5, 5.2, 5, "A", { sph: 1 }),
+            B(4.6, 2.2, 0, 21, 11.6, 9.6, "A", { sph: 1 }),
+            B(9, 8, 0.2, 15, 5.4, 4.2, "#f4efe6", { sph: 1 }),
+            // 등지느러미
+            B(12.4, 6.2, 8.6, 5.4, 3.6, 1.8, "A", { sph: "dome" }),
+            B(13.2, 6.7, 10.2, 3.8, 2.6, 1.6, "A"),
+            B(13.9, 7.1, 11.8, 2.4, 1.8, 1.4, "A"),
+            B(14.5, 7.4, 13.2, 1.2, 1.2, 1.2, "A"),
+            // 가슴지느러미
+            B(15, 12.2, 0.2, 4.4, 3.4, 1.8, "A", { sph: "dome" }),
+            B(15, 0.6, 0.2, 4.4, 3.4, 1.8, "A", { sph: "dome" }),
+            // 큰 눈·볼터치·웃는 입과 작은 이빨
+            B(19.4, 11.6, 5, 2, 1.5, 2.4, "#222222", { sph: 1 }),
+            B(20.1, 12.8, 6.4, 0.7, 0.4, 0.7, "#ffffff"),
+            B(22, 11.2, 4, 2, 1, 1.2, "#ff9ab0", { sph: 1 }),
+            B(21.4, 11.3, 2.6, 3, 0.6, 0.5, "#3a3a44"),
+            B(21.8, 11.6, 2.1, 0.6, 0.4, 0.5, "#ffffff"),
+            B(23, 11.4, 2.1, 0.6, 0.4, 0.5, "#ffffff"),
+          ],
+        };
+
+        // ── 러그 추가 4종 ──
+        Object.assign(TX, {
+          melonrug: (x, y, z, f, b) => {
+            if (f !== "T") return null;
+            const u = (x / b.w - 0.5) * 2,
+              v = y / b.d,
+              r = Math.hypot(u, v);
+            if (r > 1) return null;
+            if (r > 0.9) return hex("#3d8a4a");
+            if (r > 0.82) return hex("#a8d86a");
+            if (r > 0.77) return hex("#f4f4dc");
+            const a = Math.atan2(v, u);
+            for (const [rr, n] of [[0.38, 4], [0.6, 6]])
+              for (let i = 0; i < n; i++) {
+                const aa = ((i + 0.5) / n) * Math.PI;
+                if (Math.hypot(u - Math.cos(aa) * rr, (v - Math.sin(aa) * rr) * 1.5) < 0.05) return K.ink;
+              }
+            return a > 0 && r < 0.1 ? lerp(b.c, K.white, 0.2) : b.c;
+          },
+          waverug: (x, y, z, f, b) => {
+            if (f !== "T") return mul(b.c, 0.75);
+            if (Math.min(x, y, b.w - x, b.d - y) < 1.5) return mul(b.c, 0.72);
+            const k = y + Math.sin(x * 0.4) * 2.2,
+              band = ((Math.floor(k / 3.5) % 3) + 3) % 3;
+            return band === 0 ? b.c : band === 1 ? K.white : lerp(b.c, K.white, 0.5);
+          },
+          eggrug: (x, y, z, f, b) => {
+            if (f !== "T") return null;
+            const u = (x / b.w - 0.5) * 2,
+              v = (y / b.d - 0.5) * 2,
+              r = Math.hypot(u, v),
+              a = Math.atan2(v, u),
+              lim = 0.86 + 0.09 * Math.sin(a * 3 + 1) + 0.05 * Math.cos(a * 5);
+            if (r > lim) return null;
+            const yr = Math.hypot(u + 0.08, v + 0.06);
+            if (yr < 0.38) return Math.hypot(u + 0.2, v + 0.18) < 0.1 ? hex("#fff0b0") : yr > 0.33 ? hex("#f0a020") : hex("#ffc23a");
+            return r > lim - 0.07 ? mul(b.c, 0.9) : b.c;
+          },
+          diamondrug: (x, y, z, f, b) => {
+            if (f !== "T") return mul(b.c, 0.85);
+            if (x < 1.6 || x > b.w - 1.6) return (y | 0) % 2 ? null : lerp(b.c, K.white, 0.4);
+            // 아이소메트릭 시점에서 마름모로 보이는 격자
+            const gx = (((x - 1.6) % 8) + 8) % 8,
+              gy = ((y % 8) + 8) % 8;
+            if (gx < 1 || gy < 1) return hex("#3a3330");
+            if (Math.abs(gx - 4.5) < 1 && Math.abs(gy - 4.5) < 1) return hex("#c9654c");
+            return ((x | 0) * 5 + (y | 0) * 3) % 7 === 0 ? mul(b.c, 0.94) : b.c;
+          },
+        });
+        ITEMS.melonrug = { n: "수박 러그", c: "러그", nocol: 1, L: "r", w: 3, d: 2, A: "#ff6b6b", b: rb("melonrug", 3, 2) };
+        ITEMS.waverug = { n: "물결 러그", c: "러그", L: "r", w: 3, d: 2, A: "#4f8ed8", b: rb("waverug", 3, 2) };
+        ITEMS.eggrug = { n: "달걀프라이 러그", c: "러그", nocol: 1, L: "r", w: 2, d: 2, A: "#fbf7ee", b: rb("eggrug", 2, 2) };
+        ITEMS.diamondrug = { n: "마름모 러그", c: "러그", L: "r", w: 3, d: 2, A: "#f1e8d6", b: rb("diamondrug", 3, 2) };
+        TX.phoneSign=(x,y,z,f,b)=>{
+          if(f!=="F" && f!=="B")return b.c;
+          const u=Math.floor((x-2)/1),v=Math.floor(z-1);
+          const glyph=["###.#.#.###.#..","#.#.#.#.#...#..","###.###.##..#..","#...#.#.#...#..","#...#.#.###.###"];
+          return v>=0&&v<5&&u>=0&&u<15&&glyph[4-v][u]==="#"?K.ink:b.c;
+        };
+        ITEMS.phonebooth={
+          n:"전화 부스", c:"소품", L:"f",w:2,d:2,fw:3,fd:3,ns:1,A:"#ab4c4b",sec:"#f4efe6",pn:["부스","간판"],
+          b:()=>[
+            B(1,1,0,22,22,2,"a"),B(2,2,2,20,20,1,"#9b8e80"),
+            B(2,2,3,20,2,38,"A"),
+            ...[[2,2],[20,2],[2,20],[20,20]].map(([x,y])=>B(x,y,3,2,2,38,"A")),
+            ...[2,20].flatMap(x=>[B(x,4,9,1.4,16,29,"#cfe6f0",{gl:.22,t:"glassG"}),...[9,23,37].map(z=>B(x,4,z,2,16,1.1,"A"))]),
+            B(2,2,40,20,20,2,"A"),B(1,1,42,22,22,2,"a"),B(2,2,44,20,20,2,"A",{sph:"dome"}),
+            B(2,20,33,20,2,7,"A"),B(3,22,34,18,.7,5,"#f4efe6",{t:"phoneSign"}),
+            B(2,21,3,8,1,3,"A"),B(2,21,29,8,1,2,"A"),B(9,21,6,1,1,23,"A"),
+            B(3,21.2,6,6,.6,23,"#cfe6f0",{gl:.18,t:"glassG"}),B(3,21,18,6,1,1,"A"),B(9.3,22,15,.8,.8,3,"#d9a840"),
+            B(7,4,18,10,4,13,"#37343b"),B(10,8,23,5,.5,4,"#b9c5ca"),
+            ...Array.from({length:9},(_,i)=>B(10+i%3*1.4,8.6,19+Math.floor(i/3)*1.1,.8,.5,.6,"#f4efe6")),
+            B(7,8,19,2,2,11,"#1a1a1e"),B(6.5,8,19,3,2.5,2,"#1a1a1e"),B(6.5,8,28,3,2.5,2,"#1a1a1e"),
+            B(5,4,14,14,7,1.5,"a")
+          ]
+        };
         const FIT = {
           sofa: {},
           loveseat: {},
@@ -9337,7 +10431,6 @@
           baduk: ["바둑판", "통"],
           boardgames: ["맨 아래 상자", "상자"],
           pooltable: ["몸체", "천"],
-          foosball: ["몸체", "막대"],
           grandpiano: ["몸체", "건반"],
           drumset: ["드럼", "심벌"],
           chesterfield: ["소파", "방석"],
@@ -9499,6 +10592,38 @@
           return P[it.pat] || Object.values(P)[0];
         };
 
+        // ── 수동 검토한 염색 정책 ──
+        const DYE_PARTS = {"bed": ["이불", "#8a5530", "침대 프레임"], "sofa": ["소파", "L", "방석"], "armchair": ["소파", "L", "방석"], "chair": ["좌판·등받이", "a", "다리"], "stool": ["나무 틀", "#e86a8a", "방석"], "desk": ["상판", "a", "다리·서랍"], "table": ["상판", "a", "다리"], "wardrobe": ["몸체", "a", "상단"], "counter": ["수납장", "#9aa4ad", "상판"], "fireplace": ["벽돌", "#5a3520", "선반"], "floorlamp": ["갓", "#3a3a3a", "기둥"], "candle": ["초", "#d9a840", "촛대"], "candelabra": ["촛대", "#f4efe0", "초"], "moonlamp": ["달 장식", "#8a5530", "받침"], "neon": ["네온", "#2a1d1a", "판"], "window": ["창틀", "#d8cfc0", "창턱"], "bigwindow": ["창틀", "#d8cfc0", "창턱"], "bunkbed": ["아래 이불", "L", "위 이불"], "canopy": ["천", "#f4efe6", "프레임"], "futon": ["이불", "#f4efe6", "요"], "vanity": ["화장대", "#d9a840", "거울 틀"], "chest": ["상자", "a", "뚜껑"], "ottoman": ["방석", "#8a5530", "다리"], "loveseat": ["소파", "L", "방석"], "beanbag": ["빈백", "L", "쿠션"], "rocking": ["나무 틀", "#e86a8a", "방석"], "sidetable": ["상판", "a", "다리"], "lowtable": ["상판", "a", "다리"], "coatrack": ["코트", "#8a5530", "걸이"], "arcade": ["몸체", "a", "상단"], "sink": ["수납장", "#b0b8c0", "개수대"], "diningtable": ["상판", "a", "다리"], "toilet": ["변기", "L", "뚜껑"], "telescope": ["망원경", "#555555", "삼각대"], "paperlamp": ["종이 갓", "#8a5530", "받침"], "tablelamp": ["갓", "#3a3a3a", "받침"], "saltlamp": ["소금 결정", "#8a5530", "받침"], "starlamp": ["별", "#8a5530", "받침"], "glowjar": ["병", "#8a5530", "뚜껑"], "book": ["표지", "#ffe28a", "책갈피"], "teapot": ["몸체", "L", "뚜껑"], "bunnydoll": ["인형", "#ffb0c0", "귀 안쪽"], "ricecooker": ["몸체", "L", "뚜껑"], "pot": ["냄비", "L", "뚜껑"], "giftbox": ["상자", "#ffe28a", "리본"], "basket": ["바구니", "a", "테두리"], "petbed": ["방석", "L", "테두리"], "cattower": ["판", "#c9a060", "기둥"], "bigteddy": ["몸", "#fff0f4", "배·주둥이"], "teddy": ["몸", "#c94f5d", "리본"], "roundwindow": ["창틀", "#d8cfc0", "창턱"], "dreamcatcher": ["고리", "#ffffff", "깃털"], "curtains": ["커튼", "#8a5530", "커튼봉"], "onecurtain": ["커튼", "#8a5530", "커튼봉"], "lacecurtain": ["레이스", "#8a5530", "커튼봉"], "blinds": ["블라인드", "#888888", "상자"], "rollshade": ["스크린", "#888888", "상자"], "suncatcher": ["보석", "#ffe28a", "아래 보석"], "moonmobile": ["달", "#ffcf6b", "별"], "platformbed": ["프레임", "#9fd4ff", "이불"], "hammock": ["해먹", "#8a5530", "기둥"], "jewelbox": ["상자", "L", "뚜껑"], "sectional": ["소파", "L", "방석"], "hangingchair": ["의자", "#fbf6ee", "방석"], "roundtable": ["상판", "a", "다리"], "consoletable": ["상판", "a", "다리"], "jukebox": ["몸체", "a", "상단"], "island": ["수납장", "#e8e4dc", "상판"], "barstool": ["방석", "#555555", "다리"], "cupboard": ["찬장", "a", "선반"], "cornerdesk": ["상판", "a", "다리"], "arclamp": ["갓", "#cccccc", "기둥"], "tripodlamp": ["갓", "#8a5530", "다리"], "mushroomlamp": ["버섯 갓", "#f4efe6", "기둥"], "candlecluster": ["초", "#c9a040", "받침"], "tapestry": ["태피스트리", "#8a5530", "막대"], "watercan": ["몸체", "L", "손잡이"], "suitcase": ["가방", "#333333", "손잡이"], "shoes": ["신발", "#ffffff", "밑창"], "bicycle": ["프레임", "#c98d55", "바구니"], "hamstercage": ["받침·지붕", "#c9c9c9", "철장"], "computerdesk": ["상판", "a", "다리"], "standingdesk": ["상판", "#555555", "다리"], "kidsdesk": ["상판", "#6fa2e8", "다리"], "drawingtable": ["상판", "#8a5530", "다리"], "gamingchair": ["의자", "L", "쿠션"], "slatchair": ["좌판·등받이", "a", "다리"], "foldingchair": ["좌판", "#888888", "다리"], "shellchair": ["좌판", "#c98d55", "다리"], "loungechair": ["방석", "a", "프레임"], "bench": ["좌판", "a", "다리"], "parkbench": ["나무 판", "#333333", "철제 다리"], "storagebench": ["수납함", "#9fbfd8", "방석"], "mezzanine": ["나무", "#f4efe6", "난간"], "archway": ["아치", "#ff9ab0", "꽃"], "curtainpartition": ["커튼", "#555555", "기둥"], "tallcurtain": ["커튼", "#9a9aa2", "레일"], "brickwall": ["벽돌", "#d8cfc0", "윗돌"], "rockinghorse": ["말", "#8a5530", "받침"], "loftbed": ["프레임", "#6fa2e8", "이불"], "loftdesk": ["프레임", "#6fa2e8", "이불"], "loftwardrobe": ["프레임", "#6fa2e8", "이불"], "rounddesk": ["상판", "a", "다리"], "ovaldesk": ["상판", "a", "다리"], "roundcornerdesk": ["상판", "a", "다리"], "pebbledesk": ["상판", "a", "다리"], "halfmoondesk": ["상판", "a", "다리"], "daybed": ["프레임", "#e8dcc8", "매트리스"], "crib": ["침대", "#fff6ec", "매트리스"], "floorchair": ["의자", "L", "방석"], "rattanchair": ["라탄", "#f4efe6", "방석"], "cafetable": ["상판", "#3a3a3a", "다리"], "coffeetable": ["다리·테", "#c98d55", "선반"], "kotatsu": ["이불", "#c98d55", "상판"], "cuckoo": ["시계", "a", "지붕"], "pennant": ["깃발", "#8a5530", "깃대"], "snowman": ["목도리·모자띠", "#3a3a3a", "모자"], "gramophone": ["나팔", "#8a5530", "몸체"], "trophy": ["컵", "#8a5530", "받침"], "teacup": ["찻잔", "#e86a8a", "무늬 띠"], "perfume": ["병", "#d9a840", "뚜껑"], "slatpartition": ["나무살", "a", "받침"], "tallslat": ["나무살", "a", "레일"], "bamboopartition": ["발", "#8a6a40", "틀"], "frameset3": ["액자 틀", "#f8f4ea", "매트"], "butterfly": ["나비", "#8a5530", "액자 틀"], "worldclocks": ["시계", "#d9a840", "이름표"], "chesstable": ["테이블", "#8a5530", "체스판 테두리"], "mahjong": ["탁자", "#2f7a4a", "천"], "baduk": ["바둑판", "#8a5530", "통"], "pooltable": ["몸체", "#2f8a4a", "천"], "drumset": ["드럼", "#d9a840", "심벌"], "chesterfield": ["소파", "L", "방석"], "teatable": ["상", "a", "다리"], "homebar": ["바", "#c98d55", "상판"], "trunk": ["가방", "L", "뚜껑"], "hanjilamp": ["한지", "#6b4226", "나무 틀"], "windowseat": ["방석", "L", "등쿠션"], "menuboard": ["나무 틀", "#394b47", "칠판"], "apothecary": ["수납장", "#d5ac67", "손잡이"], "rolltop": ["책상", "#765138", "다리"], "towelrail": ["사다리", "#8daeb6", "수건"], "clothespile": ["윗옷", "#6c8db5", "바지"], "messsocks": ["양말", "#e86a8a", "줄무늬"], "cupramen": ["컵", "#e8503a", "띠"], "emptycans": ["캔", "#5fb0a0", "다른 캔"], "tangledcable": ["선", "#3a3a44", "휴대폰"], "dryingrack": ["건조대", "#ffb0c4", "티셔츠"], "clothchair": ["겉옷", "#6c8db5", "바지"], "flipslippers": ["슬리퍼", "#c9b391", "밑창"], "dishstack": ["그릇", "L", "위 그릇"], "gnome": ["모자", "#4f7cc4", "옷"], "creekbridge": ["난간", "#d9b085", "다리 판"], "plushdog": ["몸", "#a0703f", "귀"], "penguin": ["몸", "#e04a4a", "목도리"], "plushdino": ["몸", "#ffcf6b", "등 가시"], "plushwhale": ["몸", "#f4efe6", "배"], "plushshark": ["몸", "#f4efe6", "배"], "phonebooth": ["부스", "#f4efe6", "간판"]};
+        const DYE_MAIN = {"laddershelf":"사다리·선반","stairshelf":"책장","archshelf":"책장","displaycase":"진열장 틀","cubeshelf":"선반","pizzabox": "피자 상자", "snackbag": "봉지", "fruitbowl": "그릇", "breadbasket": "바구니", "cakestand": "접시", "musicstand": "스탠드", "birdbath": "돌 받침", "fountain": "분수 몸체", "wallfountain": "돌 틀", "bathtub": "욕조", "hinoki": "욕조", "lilyjar": "항아리", "picketfence": "울타리", "mossframe": "액자 틀", "aquatable": "수조 틀", "recordbin": "수납장", "rotatingbookcase": "책장", "stainedpartition": "유리 틀", "piano": "몸체", "grandpiano": "몸체", "mirror": "거울 틀", "standmirror": "거울 틀", "sunmirror": "거울 틀", "roundmirror": "거울 틀", "frame": "액자 틀", "photo": "액자 틀", "laptop": "몸체", "monitor": "모니터", "crt": "몸체", "glasspartition": "프레임", "ironpartition": "프레임", "plantpartition": "화단·격자", "planter": "화단", "lavender": "화단", "candyjar": "뚜껑", "tissue": "상자", "printer": "몸체", "heater": "몸체", "calendar": "달력 머리", "snowglobe": "받침", "teddy": "몸", "glowjar": "병", "lavalamp": "용암", "recordwall": "액자 틀", "paperballs": "종이", "shower": "바닥", "fan": "몸체", "shelfpartition": "선반", "polaroids": "줄", "tree": "리본", "wreath": "리본", "plant": "화분", "bigplant": "화분", "hangplant": "화분", "sunflower": "화분", "tulip": "화분", "palm": "화분", "succulent": "화분", "snakeplant": "화분", "olivetree": "화분", "bamboo": "화분", "paradise": "화분", "topiary": "화분", "fern": "화분", "bonsai": "화분"};
+        const DYE_REMAP = {"cactus": ["#e8c070", "화분"], "globe": ["#8a5530", "받침"], "miniglobe": ["#8a5530", "받침"], "fishtank": ["#8a5530", "받침대"], "aquacolumn": ["#2a2a30", "받침·뚜껑"], "parrot": ["#8a5530", "횃대"], "zengarden": ["#8a5530", "나무 틀"], "tree": ["#c94f3d", "리본"], "wreath": ["#e83a4a", "리본"], "polaroids": ["#8a5530", "줄"]};
+        const DYE_FIXED = new Set(["melonrug", "eggrug", "fishbowl", "worldmap", "pond", "pumpkin", "ivy", "discoball", "terrarium", "rubik", "cake", "donut", "cupcake", "macarons"]);
+        const DYE_THEMES = {"bookshelf":[],"tallshelf":[],"lowshelf":[],"books":["#4f7cc4","#c94f5d","#e8c070","A"],"bookstack":["#4f7cc4","#c94f5d","A","#e8c070"],"bookends":["#c94f5d","#4f7cc4","#e8c070","#5fae7c","#e86a8a","A"],"hanger":["#e86a8a","#4f7cc4","#ffcf6b","#5fae7c"],"fairy":["#ff6b8b","#ffe28a","#7fe0c0","#9fb8ff","#ffffff"],"tree":["#ffe28a","#ff6b8b","#7fe0c0","#9fb8ff"],"pencilcup":["#ffcf6b","#ff6b8b","#6fa2e8"],"toybox":["#ff6b8b","#6fa2e8","#5fae7c"],"garland":["#ff6b8b","#ffe28a","#7fd0ff","#8fd07a","#c07aff","#ff9a3a"],"windowgarland":["#ff6b8b","#ffe28a","#7fd0ff","#8fd07a","#c07aff","#ff9a3a"],"rainbowrug":[],"bookcart":["#c94f5d","#4f7cc4","#e8c070","#5fae7c","#9a6fc4","#e86a8a","#7aa0e0"],"recordbin":["#729eb5","#c98096","#609874","#d5ac67"],"rotatingbookcase":["#c98096","#729eb5","#609874","#d5ac67","#e7cab5"],"shelf":["#4f7cc4","#e8c070","#c94f5d"],"shelfpartition":["#c94f5d","#4f7cc4","#e8c070"],"laddershelf":["#e83a4a","#ff9a3a","#ffd84a","#5fc46c","#5b8fd8","#9a6fc4","#f4efe6","#c94f5d"],"stairshelf":[],"archshelf":[],"displaycase":["#c94f5d","#4f7cc4","#e8c070"],"cubeshelf":[]};
+        const THEME_ONLY = new Set(["books","bookstack","bookends","fairy","garland","windowgarland","rainbowrug"]);
+        const DEFAULT_THEME = {fairy:"warm",garland:"pastel",windowgarland:"pastel",rainbowrug:"pastel",toybox:"pastel",tree:"xmas",pencilcup:"pastel"};
+        const dyeHex = c=>"#"+c.map(v=>Math.round(v*255).toString(16).padStart(2,"0")).join("");
+        for (const [k,D] of Object.entries(ITEMS)) {
+          D.multi = Object.hasOwn(DYE_THEMES,k) ? 1 : 0;
+          D.nocol = D.nocol || DYE_FIXED.has(k);
+          const oldLabel = D.pn?.[0];
+          D.pn = [DYE_MAIN[k] || oldLabel || (D.c === "러그" ? "러그" : "본체")];
+          D.sec = undefined; D.one = 1;
+          if (DYE_PARTS[k] && !D.nocol && !D.pet && !D.pals) {
+            const [a,b,n] = DYE_PARTS[k]; D.pn=[a,n]; D.sec=b; D.one=0;
+          }
+          if (DYE_REMAP[k]) {
+            const [target,label]=DYE_REMAP[k], oldA=D.A, ob=D.b;
+            D.A=target; D.pn=[label]; D.sec=undefined; D.one=1;
+            D.b=(on,it)=>ob(on,it).map(b=>{
+              if(b.c===target) return {...b,c:"A"};
+              if(b.c==="A") return {...b,c:oldA};
+              if(b.c==="a") return {...b,c:dyeHex(mul(hex(oldA),.72))};
+              if(b.c==="L") return {...b,c:dyeHex(lerp(hex(oldA),K.white,.35))};
+              return b;
+            });
+          }
+          if(D.multi) D.pn[1] = ({laddershelf:"책",stairshelf:"책",archshelf:"책",displaycase:"책",cubeshelf:"수납 소품",shelf:"책",shelfpartition:"책",tree:"트리 장식",fairy:"전구",hanger:"옷",pencilcup:"연필",toybox:"장난감",garland:"깃발",windowgarland:"깃발",rainbowrug:"무지개",recordbin:"레코드 표지",rotatingbookcase:"책",bookshelf:"책",tallshelf:"책",lowshelf:"소품",bookcart:"책",books:"다른 책",bookstack:"다른 책",bookends:"책"})[k] || "장식";
+        }
+
         // ── 가구 상자 분류 · 보조 색 프리셋 ──
         const CATS = [
           "침대",
@@ -9523,20 +10648,17 @@
           "소품",
         ];
         const RB = ["#e83a4a", "#ff9a3a", "#ffd84a", "#5fc46c", "#5b8fd8", "#9a6fc4"].map(hex);
-        const COLS = [
-          "#e86a8a",
-          "#ff8a5c",
-          "#ffcf6b",
-          "#8fd07a",
-          "#4fae5c",
-          "#5fb0a0",
-          "#6fa2e8",
-          "#9a7fe0",
-          "#f4efe6",
-          "#c98d55",
-          "#8a5530",
-          "#3a3a44",
-        ];
+        const COLS = ["#f5ebdd","#a4a9af","#3d414a","#c79a65","#79523d","#c95b56","#e9a5bd","#ebc354","#8dae72","#438d86","#638bcb","#aa90d1"];
+        const COLOR_NAMES = {"#f5ebdd":"밀크 아이보리","#a4a9af":"실버 그레이","#3d414a":"잉크 차콜","#c79a65":"허니 오크","#79523d":"코코아 월넛","#c95b56":"토마토 레드","#e9a5bd":"로즈 핑크","#ebc354":"허니 옐로","#8dae72":"허브 그린","#438d86":"딥 틸","#638bcb":"코발트 블루","#aa90d1":"아이리스 퍼플"};
+
+        // 기본 염색 색은 공용 팔레트에서 지정한다. 모델의 고유 재료색과 특수 무늬는 유지한다.
+        const DEFAULT_DYES = {"bed":["#e9a5bd","#79523d"],"sofa":["#638bcb","#f5ebdd"],"armchair":["#e9a5bd","#f5ebdd"],"chair":["#c79a65","#79523d"],"stool":["#c79a65","#e9a5bd"],"desk":["#c79a65","#79523d"],"table":["#c79a65","#79523d"],"nightstand":["#c79a65"],"dresser":["#c79a65"],"bookshelf":["#c79a65"],"wardrobe":["#c79a65","#79523d"],"tv":["#3d414a"],"piano":["#3d414a"],"counter":["#f5ebdd","#a4a9af"],"bathtub":["#f5ebdd"],"fireplace":["#c95b56","#79523d"],"floorlamp":["#f5ebdd","#3d414a"],"lantern":["#c95b56"],"candle":["#f5ebdd","#ebc354"],"candelabra":["#ebc354","#f5ebdd"],"lavalamp":["#e9a5bd"],"moonlamp":["#ebc354","#79523d"],"pendant":["#e9a5bd"],"tree":["#c95b56"],"walllamp":["#f5ebdd"],"fairy":["#3d414a"],"neon":["#e9a5bd","#3d414a"],"window":["#f5ebdd","#f5ebdd"],"bigwindow":["#f5ebdd","#f5ebdd"],"frame":["#79523d"],"poster":["#638bcb"],"mirror":["#ebc354"],"clock":["#79523d"],"shelf":["#c79a65"],"hangplant":["#c95b56"],"rug":["#c95b56"],"roundrug":["#638bcb"],"cushion":["#8dae72"],"teddy":["#c79a65","#c95b56"],"books":["#8dae72"],"guitar":["#c79a65"],"globe":["#79523d"],"plant":["#c95b56"],"bigplant":["#f5ebdd"],"cactus":["#ebc354"],"fishtank":["#79523d"],"bunkbed":["#638bcb","#e9a5bd"],"canopy":["#e9a5bd","#f5ebdd"],"futon":["#8dae72","#f5ebdd"],"vanity":["#f5ebdd","#ebc354"],"hanger":["#3d414a"],"chest":["#c79a65","#79523d"],"ottoman":["#aa90d1","#79523d"],"standmirror":["#ebc354"],"loveseat":["#ebc354","#f5ebdd"],"beanbag":["#c95b56","#f5ebdd"],"rocking":["#c79a65","#e9a5bd"],"sidetable":["#c79a65","#79523d"],"lowtable":["#c79a65","#79523d"],"tvstand":["#f5ebdd"],"lowshelf":["#f5ebdd"],"speaker":["#3d414a"],"coatrack":["#c95b56","#79523d"],"arcade":["#638bcb","#638bcb"],"fridge":["#f5ebdd"],"stove":["#f5ebdd"],"sink":["#f5ebdd","#a4a9af"],"diningtable":["#c79a65","#79523d"],"washer":["#f5ebdd"],"toilet":["#f5ebdd","#f5ebdd"],"washbasin":["#f5ebdd"],"officechair":["#3d414a"],"tallshelf":["#c79a65"],"filecab":["#a4a9af"],"easel":["#c79a65"],"telescope":["#f5ebdd","#3d414a"],"chandelier":["#ebc354"],"paperlamp":["#f5ebdd","#79523d"],"heater":["#f5ebdd"],"tablelamp":["#f5ebdd","#3d414a"],"desklamp":["#638bcb"],"saltlamp":["#c79a65","#79523d"],"starlamp":["#ebc354","#79523d"],"glowjar":["#638bcb","#79523d"],"candlejar":["#e9a5bd"],"book":["#c95b56","#ebc354"],"bookstack":["#8dae72"],"bookends":["#3d414a"],"mug":["#f5ebdd"],"laptop":["#a4a9af"],"monitor":["#3d414a"],"pencilcup":["#438d86"],"deskclock":["#e9a5bd"],"photo":["#c79a65"],"radio":["#e9a5bd"],"turntable":["#c79a65"],"succulent":["#ebc354"],"teapot":["#638bcb","#f5ebdd"],"fruitbowl":["#f5ebdd"],"vase":["#638bcb"],"console":["#3d414a"],"camera":["#3d414a"],"piggy":["#e9a5bd"],"bunnydoll":["#f5ebdd","#e9a5bd"],"hourglass":["#79523d"],"miniglobe":["#79523d"],"headphones":["#e9a5bd"],"tissue":["#e9a5bd"],"microwave":["#f5ebdd"],"ricecooker":["#f5ebdd","#a4a9af"],"kettle":["#c95b56"],"pot":["#a4a9af","#3d414a"],"toaster":["#e9a5bd"],"toothcup":["#638bcb"],"throwpillow":["#ebc354"],"roundpillow":["#e9a5bd"],"giftbox":["#c95b56","#ebc354"],"basket":["#c79a65","#79523d"],"petbed":["#c95b56","#f5ebdd"],"cattower":["#f5ebdd","#c79a65"],"toybox":["#ebc354"],"boxes":["#c79a65"],"trash":["#a4a9af"],"fan":["#638bcb"],"skateboard":["#c95b56"],"drum":["#c95b56"],"bigteddy":["#e9a5bd","#f5ebdd"],"sunflower":["#c95b56"],"tulip":["#f5ebdd"],"palm":["#f5ebdd"],"birdcage":["#ebc354"],"roundwindow":["#f5ebdd","#f5ebdd"],"tvwall":["#3d414a"],"garland":["#79523d"],"calendar":["#c95b56"],"corkboard":["#c79a65"],"plate":["#638bcb"],"dreamcatcher":["#c79a65","#f5ebdd"],"wallart":["#f5ebdd"],"hathooks":["#ebc354"],"ovalrug":["#438d86"],"heartrug":["#e9a5bd"],"starrug":["#ebc354"],"runner":["#aa90d1"],"checkrug":["#e9a5bd"],"striperug":["#638bcb"],"fluffyrug":["#f5ebdd"],"bearrug":["#c79a65"],"catrug":["#a4a9af"],"rainbowrug":["#c95b56"],"cloudrug":["#f5ebdd"],"bigrug":["#c95b56"],"bigoval":["#638bcb"],"doormat":["#c95b56"],"curtains":["#e9a5bd","#79523d"],"onecurtain":["#8dae72","#79523d"],"lacecurtain":["#f5ebdd","#79523d"],"blinds":["#f5ebdd","#a4a9af"],"rollshade":["#f5ebdd","#a4a9af"],"windowgarland":["#a4a9af"],"starsticker":["#ebc354"],"wreath":["#c95b56"],"suncatcher":["#638bcb","#ebc354"],"moonmobile":["#ebc354","#ebc354"],"halfrug":["#c79a65"],"platformbed":["#c79a65","#638bcb"],"hammock":["#c79a65","#79523d"],"tallchest":["#c79a65"],"jewelbox":["#e9a5bd","#f5ebdd"],"sectional":["#a4a9af","#f5ebdd"],"pouf":["#ebc354"],"hangingchair":["#c79a65","#f5ebdd"],"roundtable":["#c79a65","#79523d"],"consoletable":["#c79a65","#79523d"],"jukebox":["#c95b56","#79523d"],"tvlarge":["#3d414a"],"island":["#f5ebdd","#a4a9af"],"barstool":["#c95b56","#3d414a"],"cupboard":["#f5ebdd","#a4a9af"],"coffeemachine":["#3d414a"],"dishrack":["#a4a9af"],"shower":["#f5ebdd"],"cornerdesk":["#c79a65","#79523d"],"bookcart":["#438d86"],"typewriter":["#438d86"],"printer":["#f5ebdd"],"whiteboard":["#a4a9af"],"arclamp":["#f5ebdd","#a4a9af"],"tripodlamp":["#f5ebdd","#79523d"],"mushroomlamp":["#c95b56","#f5ebdd"],"candlecluster":["#f5ebdd","#ebc354"],"paperlantern":["#f5ebdd"],"bigclock":["#79523d"],"photowall":["#f5ebdd"],"tapestry":["#ebc354","#79523d"],"pegboard":["#c79a65"],"polaroids":["#79523d"],"jute":["#c79a65"],"flowerrug":["#e9a5bd"],"snowglobe":["#c95b56"],"deskcalendar":["#e9a5bd"],"notebook":["#638bcb"],"plushcat":["#a4a9af"],"candyjar":["#c95b56"],"watercan":["#438d86","#8dae72"],"deskmirror":["#ebc354"],"umbrellastand":["#3d414a"],"suitcase":["#ebc354","#3d414a"],"dumbbell":["#3d414a"],"beachball":["#c95b56"],"shoes":["#e9a5bd","#f5ebdd"],"bicycle":["#438d86","#c79a65"],"hamstercage":["#438d86","#a4a9af"],"bonsai":["#3d414a"],"snakeplant":["#f5ebdd"],"olivetree":["#f5ebdd"],"planter":["#c79a65"],"computerdesk":["#f5ebdd","#a4a9af"],"gamingdesk":["#3d414a"],"standingdesk":["#c79a65","#3d414a"],"kidsdesk":["#ebc354","#638bcb"],"drawingtable":["#f5ebdd","#79523d"],"gamingchair":["#3d414a","#a4a9af"],"slatchair":["#c79a65","#79523d"],"foldingchair":["#e9a5bd","#a4a9af"],"shellchair":["#f5ebdd","#c79a65"],"loungechair":["#c79a65","#79523d"],"bench":["#c79a65","#79523d"],"parkbench":["#c79a65","#3d414a"],"storagebench":["#f5ebdd","#638bcb"],"mezzanine":["#c79a65","#f5ebdd"],"laddershelf":["#c79a65"],"stairshelf":["#c79a65"],"displaycase":["#79523d"],"archshelf":["#f5ebdd"],"archway":["#f5ebdd","#e9a5bd"],"archwindow":["#f5ebdd"],"plantstand":["#c79a65"],"persianrug":["#c95b56"],"cello":["#79523d"],"xylophone":["#c79a65"],"winerack":["#79523d"],"spicerack":["#c79a65"],"partition":["#f5ebdd"],"shoji":["#c79a65"],"shelfpartition":["#c79a65"],"curtainpartition":["#aa90d1","#a4a9af"],"glasspartition":["#3d414a"],"plantpartition":["#c79a65"],"rockinghorse":["#f5ebdd","#79523d"],"loftbed":["#c79a65","#638bcb"],"loftdesk":["#c79a65","#638bcb"],"loftwardrobe":["#c79a65","#638bcb"],"rounddesk":["#f5ebdd","#a4a9af"],"ovaldesk":["#c79a65","#79523d"],"roundcornerdesk":["#638bcb","#638bcb"],"pebbledesk":["#ebc354","#c79a65"],"halfmoondesk":["#c79a65","#79523d"],"daybed":["#f5ebdd","#f5ebdd"],"crib":["#f5ebdd","#f5ebdd"],"floorchair":["#e9a5bd","#f5ebdd"],"rattanchair":["#c79a65","#f5ebdd"],"cafetable":["#f5ebdd","#3d414a"],"coffeetable":["#3d414a","#c79a65"],"kotatsu":["#e9a5bd","#c79a65"],"shoerack":["#c79a65"],"airpurifier":["#f5ebdd"],"crt":["#f5ebdd"],"cakestand":["#f5ebdd"],"breadbasket":["#c79a65"],"globelamp":["#f5ebdd"],"cuckoo":["#79523d","#79523d"],"roundmirror":["#ebc354"],"pennant":["#638bcb","#79523d"],"rose":["#f5ebdd"],"lavender":["#f5ebdd"],"fern":["#c95b56"],"catbowl":["#e9a5bd"],"snowman":["#c95b56","#3d414a"],"gramophone":["#ebc354","#79523d"],"trophy":["#ebc354","#79523d"],"rubberduck":["#ebc354"],"teacup":["#f5ebdd","#e9a5bd"],"perfume":["#e9a5bd","#ebc354"],"diffuser":["#aa90d1"],"slatpartition":["#c79a65","#79523d"],"tallslat":["#c79a65","#79523d"],"tallcurtain":["#f5ebdd","#a4a9af"],"ironpartition":["#3d414a"],"brickwall":["#c95b56","#f5ebdd"],"byeongpung":["#f5ebdd"],"bamboopartition":["#c79a65","#79523d"],"fountain":["#a4a9af"],"wallfountain":["#a4a9af"],"stonelantern":["#a4a9af"],"steppingstones":["#a4a9af"],"tatami":["#8dae72"],"zengarden":["#79523d"],"bamboo":["#3d414a"],"paradise":["#f5ebdd"],"topiary":["#f5ebdd"],"mossframe":["#79523d"],"frameset":["#3d414a"],"frameset3":["#3d414a","#f5ebdd"],"sunmirror":["#ebc354"],"recordwall":["#f5ebdd"],"butterfly":["#638bcb","#79523d"],"hoops":["#e9a5bd"],"dartboard":["#c95b56"],"worldclocks":["#3d414a","#ebc354"],"chess":["#79523d"],"chesstable":["#c79a65","#79523d"],"mahjong":["#79523d","#438d86"],"baduk":["#c79a65","#79523d"],"boardgames":["#638bcb"],"pooltable":["#79523d","#438d86"],"grandpiano":["#3d414a"],"drumset":["#c95b56","#ebc354"],"chesterfield":["#c95b56","#79523d"],"teatable":["#79523d","#79523d"],"homebar":["#3d414a","#c79a65"],"cubeshelf":["#f5ebdd"],"trunk":["#638bcb","#a4a9af"],"hinoki":["#c79a65"],"cushionstack":["#e9a5bd"],"logbasket":["#c79a65"],"aquacolumn":["#3d414a"],"parrot":["#79523d"],"hanjilamp":["#f5ebdd","#79523d"],"windowseat":["#638bcb","#f5ebdd"],"swing":["#c79a65"],"menuboard":["#c79a65","#438d86"],"musicstand":["#3d414a"],"recordbin":["#c79a65"],"aquatable":["#438d86"],"rotatingbookcase":["#c79a65"],"stainedpartition":["#79523d"],"apothecary":["#c79a65","#ebc354"],"rolltop":["#c79a65","#79523d"],"towelrail":["#c79a65","#638bcb"],"clothespile":["#8dae72","#638bcb"],"messsocks":["#f5ebdd","#e9a5bd"],"paperballs":["#f5ebdd"],"pizzabox":["#c79a65"],"cupramen":["#f5ebdd","#c95b56"],"emptycans":["#c95b56","#438d86"],"snackbag":["#ebc354"],"tangledcable":["#f5ebdd","#3d414a"],"dryingrack":["#a4a9af","#e9a5bd"],"clothchair":["#aa90d1","#638bcb"],"flipslippers":["#638bcb","#c79a65"],"dishstack":["#638bcb","#a4a9af"],"birdbath":["#a4a9af"],"gnome":["#c95b56","#638bcb"],"creekbridge":["#c95b56","#c79a65"],"lilyjar":["#438d86"],"picketfence":["#f5ebdd"],"plushdog":["#f5ebdd","#79523d"],"penguin":["#3d414a","#c95b56"],"plushdino":["#8dae72","#ebc354"],"plushwhale":["#638bcb","#f5ebdd"],"plushshark":["#a4a9af","#f5ebdd"],"waverug":["#638bcb"],"diamondrug":["#f5ebdd"],"phonebooth":["#c95b56","#f5ebdd"]};
+        for (const [k, colors] of Object.entries(DEFAULT_DYES)) {
+          const D = ITEMS[k];
+          if (!D || D.nocol || D.pet || D.pals) continue;
+          D.A = colors[0];
+          if (D.sec && colors[1]) D.defaultCM = {[D.sec]: colors[1]};
+        }
 
         // ── 벽지 · 바닥 · 색 팔레트 ──
         const WALLS = [
@@ -9736,42 +10858,8 @@
             f: (x, y, a, b) => (x % 4 === 0 || y % 4 === 0 ? b : ((x >> 2) * 7 + (y >> 2) * 3) % 5 === 0 ? mul(a, 0.9) : a),
           },
         ];
-        const WCOLS = [
-          "#f4ece0",
-          "#fde6cf",
-          "#fbe3e8",
-          "#f6d8e8",
-          "#e6ecff",
-          "#d9f0e4",
-          "#d3ecdf",
-          "#fff4d6",
-          "#ffcf6b",
-          "#ff9ab0",
-          "#9fd4ff",
-          "#8fd07a",
-          "#b9654c",
-          "#5a3520",
-          "#3a3a44",
-          "#1e2450",
-        ];
-        const FCOLS = [
-          "#c98d55",
-          "#e0b080",
-          "#8a5530",
-          "#5a3a28",
-          "#efe8dc",
-          "#cfc3ae",
-          "#a8a8a8",
-          "#3a3a44",
-          "#6f86c0",
-          "#9a7fe0",
-          "#e86a8a",
-          "#ffcf6b",
-          "#8fd07a",
-          "#5fb0a0",
-          "#d2c68c",
-          "#f4f0e8",
-        ];
+        const WCOLS = COLS;
+        const FCOLS = COLS;
         const lum = (c) => c[0] * 0.3 + c[1] * 0.59 + c[2] * 0.11,
           derive = (c) => (lum(c) > 0.55 ? mul(c, 0.86) : lerp(c, K.white, 0.22));
         const pairOf = (p, c) => (c ? [hex(c), derive(hex(c))] : [hex(p.a), hex(p.b)]);
@@ -9831,72 +10919,30 @@
                   ? hex(cm.L)
                   : lerp(A, K.white, 0.35)
                 : hex((cm && cm[c]) || c);
-        const THEMES = {
-          pastel: { n: "파스텔", c: ["#ffb0c4", "#b0d8ff", "#fff0a8", "#c8f0d0", "#e0c8ff"] },
-          vivid: { n: "선명한", c: ["#e83a4a", "#3d8adf", "#ffcf3a", "#3fae5c", "#9a4fd0"] },
-          candy: { n: "캔디", c: ["#ff6bb0", "#7fd0ff", "#ffe28a", "#b0f0a0", "#d0a0ff"] },
-          rainbow: { n: "무지개", c: ["#e83a4a", "#ff9a3a", "#ffd84a", "#5fc46c", "#5b8fd8"] },
-          sunset: { n: "노을", c: ["#ff8a3a", "#ffcf3a", "#ff6b8b", "#e8503a", "#ffb070"] },
-          warm: { n: "따뜻한", c: ["#e8603a", "#ffb050", "#c94f3d", "#ffd080", "#a85a30"] },
-          cool: { n: "차가운", c: ["#4f7cc4", "#6fc0d0", "#9a9ae0", "#3a5a8a", "#a8d8f0"] },
-          ocean: { n: "바다", c: ["#2f6ab8", "#7fd0ff", "#f4f8fa", "#4fb8c8", "#a8e0f0"] },
-          mint: { n: "민트", c: ["#6fc0a8", "#c8f0e0", "#9fe0c8", "#4fa890", "#e8fff4"] },
-          forest: { n: "숲", c: ["#3d8a4a", "#8fd07a", "#e8c070", "#6b4a2a", "#a8c878"] },
-          purple: { n: "보라", c: ["#9a6fc4", "#e0b0ff", "#ffd0f0", "#6f4fa0", "#c8a0e8"] },
-          love: { n: "하트", c: ["#e83a4a", "#ff9ab0", "#ffd0dc", "#c02840", "#ff6b8b"] },
-          gold: { n: "골드", c: ["#d9a840", "#f4efe6", "#ffe28a", "#b08030", "#e8d0a0"] },
-          vintage: { n: "빈티지", c: ["#c97a5a", "#6f8a7a", "#e8c890", "#8a6a9a", "#d8b0a0"] },
-          xmas: { n: "크리스마스", c: ["#c83030", "#2f7a44", "#f4efe6", "#d9a840", "#e86a6a"] },
-          mono: { n: "흑백", c: ["#3a3a44", "#f4efe6", "#9a9aa2", "#6a6a72", "#d0d0d4"] },
-        };
+        const THEMES = {"vintage":{"n":"앤틱 서재","c":["#813f51","#536c89","#d1a35d","#78896a","#9b7155","#ead9bc"]},"pastel":{"n":"봄의 사탕","c":["#f2b4cb","#a4cfc4","#b8b3e4","#f2d88c","#a8c8e7","#f2c3a5"]},"warm":{"n":"햇살과 도자기","c":["#c77452","#f3d397","#498f90","#f6e5cc","#7e9cb5","#95654b"]},"forest":{"n":"숲속 꽃집","c":["#536f48","#c78d9c","#e4d3a0","#9ab6a1","#775640","#efe8d8"]},"ocean":{"n":"해변의 오후","c":["#416e9c","#e28b72","#84c4c5","#eed5a5","#294b69","#f5eee0"]},"purple":{"n":"별빛 극장","c":["#73558c","#d7b66c","#a9bedd","#493e66","#c997ae","#ede1f3"]},"love":{"n":"장미와 민트","c":["#ae4b68","#92b6a5","#f2c2ce","#f2e5cc","#764f61","#b9c8d8"]},"mono":{"n":"흑백과 리넨","c":["#343741","#ede9df","#9398a2","#b7a291","#575a65","#d5cec2"]},"vivid":{"n":"레트로 포스터","c":["#d44c43","#e8bd40","#3d76b4","#449776","#d98045","#9068b2"]},"xmas":{"n":"겨울 축제","c":["#a63e46","#365d50","#e1bd72","#f3e8d1","#77966f","#784555"]}};
+        const LIGHT_THEMES = {"vintage":{"n":"샴페인","c":["#fff0cd","#ffda9c","#fff9eb","#ffe8b8"]},"pastel":{"n":"파스텔 축제","c":["#ffd0e5","#b9ebdd","#d8caff","#fff0ab"]},"warm":{"n":"전구색","c":["#ffd894","#ffeabf","#fff2d6","#ffc98b"]},"forest":{"n":"요정 정원","c":["#c8f2b6","#ffe9ab","#ffc4d7","#b4e7dd"]},"ocean":{"n":"해변의 불빛","c":["#a8d9ff","#ffd0ac","#aff0ec","#fff3cf"]},"purple":{"n":"별빛","c":["#d3baff","#ffde9a","#bad8ff","#f6d3ff"]},"love":{"n":"장미 축제","c":["#ffb7cc","#c1ebd5","#fff1d9","#e4c5fa"]},"mono":{"n":"백색","c":["#ffffff","#f0f6ff","#fff8ec","#e4efff"]},"vivid":{"n":"컬러 전구","c":["#ff757d","#ffd75a","#82bdff","#82e6aa"]},"xmas":{"n":"크리스마스","c":["#ff8d94","#9de3ac","#ffe0a0","#fff4dd"]}};
+        const themesFor = it => it.k === "fairy" ? LIGHT_THEMES : THEMES;
+        for (const [old,k] of Object.entries(THEME_ALIASES)) Object.defineProperty(THEMES,old,{value:THEMES[k],enumerable:false});
         const sat = (h) => {
           const c = hex(h),
             mx = Math.max(...c),
             mn = Math.min(...c);
           return mx < 0.12 ? 0 : (mx - mn) / mx;
         };
-        const PORD = {};
-        const pord = (k) =>
-          PORD[k] ||
-          (PORD[k] = [
-            ...new Set(
-              ITEMS[k]
-                .b(true, null)
-                .filter((b) => !b.keep && typeof b.c === "string" && b.c[0] === "#" && sat(b.c) > 0.22)
-                .map((b) => b.c.toLowerCase()),
-            ),
-          ]);
+        const pord = k => DYE_THEMES[k] || [];
+        const themeKey = it => { const k=THEME_ALIASES[it.th] || it.th; return Object.keys(THEMES).includes(k)?k:(DEFAULT_THEME[it.k]||"vintage"); };
+        const balloonKey = it => { const k=THEME_ALIASES[it.pal] || it.pal; return Object.keys(BPALS).includes(k)?k:"pastel"; };
+        const presetKey = (it,D) => it.k==="balloons"?balloonKey(it):(Object.hasOwn(D.pals,it.pal)?it.pal:Object.keys(D.pals)[0]);
+        const palettePreview = cs => `linear-gradient(90deg,${cs.map((c,i)=>`${c} ${100*i/cs.length}% ${100*(i+1)/cs.length}%`).join(",")})`;
         const BKS = new Set([...K.bk, ...RB]),
-          ACCT = ["books", "cubby", "paint", "rainbow", "photos", "polaroid", "candy", "juke"];
-        const PCACHE = {},
-          NOPART = ["sky", "roundsky", "fire", "fireflies", "glass", "tvshow"];
+          ACCT = ["books", "archbooks", "cubeF", "cubby", "paint", "rainbow", "photos", "polaroid", "candy", "juke"];
         function partsOf(k) {
-          if (PCACHE[k]) return PCACHE[k];
-          const D = ITEMS[k];
-          if (D.one) return (PCACHE[k] = []);
-          if (D.sec) return (PCACHE[k] = [D.sec]);
-          if (D.pet || D.multi) return (PCACHE[k] = []);
-          const bl = D.b(true, null),
-            S2 = surf(150, 150, 75, 110);
-          clear(S2);
-          const P0 = { sw: 0, x: 0, y: 0, z: 0 };
-          bl.forEach((b, i) => rast(S2, wbox(b, P0, hex(D.A), i + 1, true, null)));
-          const cnt = new Map();
-          let tot = 0;
-          for (let i = 0; i < S2.id.length; i++) {
-            const id = S2.id[i];
-            if (!id) continue;
-            tot++;
-            const b = bl[id - 1];
-            if (typeof b.c !== "string" || b.c === "A" || NOPART.includes(b.t)) continue;
-            cnt.set(b.c, (cnt.get(b.c) || 0) + 1);
-          }
-          const best = [...cnt.entries()].filter((e) => e[1] >= Math.max(8, tot * 0.06)).sort((x, y) => y[1] - x[1]);
-          return (PCACHE[k] = best.slice(0, 1).map((e) => e[0]));
+          const D=ITEMS[k];
+          return D && !D.nocol && !D.pet && !D.pals && D.sec ? [D.sec] : [];
         }
         const partCol = (it, p) => {
           const A = hex(it.col || ITEMS[it.k].A),
-            c = (it.cm || {})[p];
+            c = (it.cm || {})[p] || ITEMS[it.k].defaultCM?.[p];
           return c || (p === "a" ? toHex(mul(A, 0.72)) : p === "L" ? toHex(lerp(A, K.white, 0.35)) : p);
         };
         function wbox(b, P, A, id, on, pat) {
@@ -9905,12 +10951,13 @@
             sw = P.sw,
             bx = P.fx ? P.uw - b.x - b.w : b.x,
             by = P.fy ? P.ud - b.y - b.d : b.y,
-            cc = res(b.c, A, P.cm);
+            cc = res(b.c, A, b.keep ? null : P.cm);
           return {
             bx: b.x,
             by: b.y,
             bz: b.z,
             pat,
+            palK: P.palK,
             x0: P.x + (sw ? by : bx),
             y0: P.y + (sw ? bx : by),
             z0: P.z + b.z,
@@ -9924,7 +10971,7 @@
             w: b.w,
             d: b.d,
             h: b.h,
-            t: b.t ? TX[b.t] : null,
+            t: b.t ? (b.jtex ? (x,y,z,f,box)=>TX[b.t](f==="S"?x:x+b.jtex.phase,y,z,f==="B"&&b.t==="glassG"?"F":f,{...box,w:b.jtex.total}) : TX[b.t]) : null,
             th: thf && !isA && !b.keep ? (c) => thf(c, A) : null,
             thx:
               P.palK && ACCT.includes(b.t)
@@ -9937,28 +10984,174 @@
             id,
           };
         }
+        // 직선 연결: 같은 계열은 하나의 연속 구간으로 계산하고 개별 ID는 보존한다.
+        const JOIN_FAMILY = {wallfountain:"water",brickwall:"brick",slatpartition:"slat",tallslat:"slat",tallcurtain:"curtain",curtainpartition:"curtain",ironpartition:"glass",glasspartition:"glass",shoji:"shoji",planter:"planter",plantpartition:"planter",stainedpartition:"stained"};
+        const JOIN = new Set(Object.keys(JOIN_FAMILY));
+        const JOIN_TALL = new Set(["tallslat","tallcurtain","ironpartition","plantpartition"]);
+        // Symmetric slats have no front/back; 180° is the same alignment.
+        const joinRot=(it,o)=>JOIN_FAMILY[it.k]==="slat" ? ((it.rot||0)&1)===((o.rot||0)&1) : (it.rot||0)===(o.rot||0);
+        function joinSpan(it) {
+          const D=ITEMS[it.k], f=fpOf(D,it), wall=D.L==="w", sw=!wall && (it.rot&1);
+          const a=(sw?it.gy:it.gx)*(wall?T:G), w=(sw?f.h:f.w)*(wall?T:G);
+          return {a,b:a+w,w,lane:wall?it.gy:(sw?it.gx:it.gy),depth:wall?f.h:(sw?f.w:f.h),flip:!wall&&(it.rot===1||it.rot===2)};
+        }
+        function joinPair(it,o) {
+          if(!JOIN.has(it.k)||JOIN_FAMILY[it.k]!==JOIN_FAMILY[o.k]||flOf(it)!==flOf(o)) return false;
+          const D=ITEMS[it.k], wall=D.L==="w";
+          if(wall?it.side!==o.side:(!joinRot(it,o)||(it.z||0)!==(o.z||0)||it.host||o.host))return false;
+          const a=joinSpan(it), b=joinSpan(o);
+          if(a.lane!==b.lane||a.depth!==b.depth)return false;
+          // A taller slat may fully overlap part of a shorter run, but exact duplicates are invalid.
+          if((a.a<=b.a&&a.b>=b.b)||(b.a<=a.a&&b.b>=a.b)) {
+            if(JOIN_FAMILY[it.k]!=="slat"||it.k===o.k||(a.a===b.a&&a.b===b.b))return false;
+            const high=JOIN_TALL.has(it.k)?a:b,low=high===a?b:a;
+            if(high.a<=low.a&&high.b>=low.b)return false;
+          }
+          return a.a<=b.b && b.a<=a.b;
+        }
+        function joinGroups(items) {
+          const pending=items.filter(o=>JOIN.has(o.k)), map=new Map();
+          while(pending.length) {
+            const group=[pending.pop()];
+            for(let i=0;i<group.length;i++)for(let j=pending.length-1;j>=0;j--)if(joinPair(group[i],pending[j]))group.push(pending.splice(j,1)[0]);
+            if(group.length<2)continue;
+            const members=group.map(it=>({it,...joinSpan(it)})), points=[...new Set(members.flatMap(m=>[m.a,m.b]))].sort((a,b)=>a-b), spans=[];
+            // 높이가 다른 모듈이 겹치면 높은 모델이 겹친 구간을 맡는다. 같은 높이는 왼쪽부터 맡는다.
+            for(let i=0;i<points.length-1;i++) {
+              const start=points[i],end=points[i+1];
+              const owner=members.filter(m=>m.a<=start&&m.b>=end).sort((a,b)=>Number(JOIN_TALL.has(b.it.k))-Number(JOIN_TALL.has(a.it.k))||a.a-b.a||a.it.id-b.it.id)[0];
+              if(!owner)continue;
+              const last=spans[spans.length-1];
+              if(last&&last.owner===owner&&last.end===start)last.end=end;else spans.push({owner,start,end});
+            }
+            const g={members,spans,start:points[0],end:points[points.length-1],family:JOIN_FAMILY[group[0].k]};
+            for(const m of members)map.set(m.it.id,g);
+          }
+          return map;
+        }
+        let activeJoins=null;
+        function connectedModel(it,on) {
+          const D=ITEMS[it.k];
+          if(!JOIN.has(it.k)||!it.id||!St||!St.items.some(o=>o.id===it.id))return D.b(on,it);
+          const g=(activeJoins||joinGroups(St.items)).get(it.id);
+          if(!g)return D.b(on,it);
+          return g.spans.filter(s=>s.owner.it.id===it.id).flatMap(s=>joinedSegment(it,on,g,s));
+        }
+        function joinedSegment(it,on,g,seg) {
+          const a=seg.owner,{start,end}=seg,W=end-start;
+          const left=start>g.start,right=end<g.end;
+          const L=a.flip?right:left,R=a.flip?left:right,off=a.flip?a.b-end:start-a.a;
+          const phase=a.flip?g.end-end:start-g.start, total=g.end-g.start;
+          const near=(side)=>g.spans.find(s=>side?(a.flip?s.end===start:s.start===end):(a.flip?s.start===end:s.end===start));
+          const leftKind=near(false)?.owner.it.k,rightKind=near(true)?.owner.it.k;
+          const pattern=(step,fn)=>{const n=Math.max(1,Math.round(total/step)),pitch=total/n;for(let i=0;i<n;i++){const x=(i+.5)*pitch-phase;if(x>=0&&x<W)fn(x,i,pitch);}};
+          let out=[];
+          const add=(...b)=>out.push(...b), X=(x,w)=>Math.max(.2,w), lo=L?0:2, hi=R?W:W-2;
+          const rails=(y,z,d,h,c)=>add(B(0,y,z,W,d,h,c));
+          const posts=(y,z,d,h,c,step=12)=>{
+            const n=Math.max(1,Math.round(total/step)),pitch=total/n;
+            if(!L)add(B(0,y,z,1.3,d,h,c));
+            for(let i=1;i<n;i++){const x=i*pitch-phase;if(x>=0&&x<W)add(B(x-.65,y,z,1.3,d,h,c));}
+            if(!R)add(B(W-1.3,y,z,1.3,d,h,c));
+          };
+          switch(it.k){
+            case "wallfountain":{
+              add(B(lo,0,4,X(lo,hi-lo),2,26,"A",{t:"stoneO"}),B(L?0:4,0,28,X(0,W-(L?0:4)-(R?0:4)),4,1.6,"L"),
+              B(L?0:6,2,7,X(0,W-(L?0:6)-(R?0:6)),.6,21,"#8fd0f0",{gl:.55,t:"fallW"}),
+              B(L?0:3,0,.5,X(0,W-(L?0:3)-(R?0:3)),8,5.5,"A",{t:"stoneO"}),
+              B(L?0:4,1,5.4,X(0,W-(L?0:4)-(R?0:4)),6,.6,"#5fb8d8",{t:"waterT"}));
+              if(!L)add(lf(4,2.5,29.4,"x",5,2.4,G2));
+              if(!R)add(lf(Math.max(1,W-7),2.5,29.4,"x",5,2.4,G3));
+              break;
+            }
+            case "brickwall": add(B(0,4,0,W,8,40,"A",{t:"bricks"}),B(L?0:-.5,3.5,40,W+(L?0:.5)+(R?0:.5),9,2,"#d8cfc0"));break;
+            case "slatpartition":case "tallslat":{
+              const tall=it.k==="tallslat";
+              // One world-space lattice for the entire connected run. Every slat is owned by
+              // exactly one segment, even if it straddles the boundary between two items.
+              rails(1,0,6,1.5,"a");if(tall)rails(1,70.5,6,1.5,"a");
+              const n=Math.max(2,Math.round(total/3)),pitch=total/n;
+              for(let i=0;i<n;i++) {
+                const world=g.start+(i+.5)*pitch;
+                if(world<start||world>=end)continue;
+                const x=a.flip?end-world:world-start;
+                add(B(x-.85,2.5,1.5,1.7,3,tall?69:42.5,"A"));
+              }
+              break;
+            }
+            case "curtainpartition":case "tallcurtain":{
+              const tall=it.k==="tallcurtain", h=tall?70.6:42.6, fabricH=tall?68.4:39, z=tall?1:3;
+              rails(3,h,2,1.4,tall?"#9a9aa2":"#555555");
+              if(!L)add(B(-.4,2.6,h-.6,1.2,2.8,2,tall?"#9a9aa2":"#555555"));if(!R)add(B(W-.8,2.6,h-.6,1.2,2.8,2,tall?"#9a9aa2":"#555555"));
+              if(!tall){if(!L||leftKind!==it.k)add(B(0,3,0,1.3,2,h,"#555555"));if(!R||rightKind!==it.k)add(B(W-1.3,3,0,1.3,2,h,"#555555"));}
+              if(on){const w=Math.min(W/2,9);if(!L||leftKind!==it.k)add(B(0,3,z,w,2.6,fabricH,"A",{t:"drape"}),B(0,2.8,z+fabricH*.35,w,3,1.4,"a"));if(!R||rightKind!==it.k)add(B(W-w,3,z,w,2.6,fabricH,"A",{t:"drape"}),B(W-w,2.8,z+fabricH*.35,w,3,1.4,"a"));}
+              else add(B(L?0:.5,3.2,z,W-(L?0:.5)-(R?0:.5),1.8,fabricH,"A",{t:"drape",gl:.85}));
+              break;
+            }
+            case "ironpartition":case "glasspartition":{
+              const tall=it.k==="ironpartition",h=tall?72:43,y=3;
+              rails(y,0,2,1.2,"A");rails(y,h-1.2,2,1.2,"A");
+              for(let z=tall?12:21;z<h-2;z+=tall?12:43)rails(y,z,2,1.2,"A");
+              add(B(0,y-1,0,W,4,1,"A"),B(L?0:1,y+.6,1,W-(L?0:1)-(R?0:1),.8,h-2,"#cfe6f0",{gl:tall?.22:.24,t:"glassG"}));
+              posts(y,0,2,h,"A",tall?10:16);break;
+            }
+            case "shoji":{
+              add(B(0,7,2,W,2,40,"A",{t:"shoji"}));if(!L)add(B(2,4,0,3,8,2,"A"));if(!R)add(B(W-5,4,0,3,8,2,"A"));break;
+            }
+            case "planter":case "plantpartition":{
+              const tall=it.k==="plantpartition",h=8;
+              add(B(0,3,0,W,10,h,"A",{t:"planks"}),B(L?0:1,4,h-1,W-(L?0:1)-(R?0:1),8,1,"#5a3a28"));
+              if(tall)add(B(0,4,h,W,1.2,26,"L",{t:"lattice"}));
+              pattern(6,(x,i,pitch)=>{let r=Math.min(6.5,pitch);add(B(x-r/2,4,h-.9,r,7,4.5,i%2?G1:G2,{sph:1,t:"leaves"}));if(tall){for(let z=14+i%2*3;z<35;z+=6)add(B(x-1.6,4.2,z,3.2,2.5,3.6,i%2?G2:G3,{sph:1,t:"leaves"}));}else add(B(x-.3,7,h,.6,.6,5,"#3d8a4a"),B(x-1.5,5.8,h+4,3,3,3,FLAGC[i%FLAGC.length],{sph:1}));});break;
+            }
+            case "stainedpartition":{
+              const colors=["#b9d4c2","#d3b1b1","#e6ce8d","#a3bdcd","#c8b8d7"],h=28,n=Math.max(1,Math.round(total/5)),pitch=total/n;
+              rails(3,0,2,1,"A");rails(3,h-1,2,1,"A");
+              for(let i=0;i<n;i++){const x0=Math.max(0,i*pitch-phase+.4),x1=Math.min(W,(i+1)*pitch-phase-.4);if(x1>x0)for(let j=0;j<5;j++)add(B(x0,3.5,1+j*5.2,x1-x0,1,4.8,colors[(i+j)%5]));}
+              posts(3,0,2,h,"A",5);break;
+            }
+          }
+          return out.filter(b=>b.w>0&&b.d>0&&b.h>0).map(b=>({...b,x:b.x+off,
+            ...( ["bricks","stoneO","waterT","glassG","shoji","drape","lattice"].includes(b.t) ? {jtex:{phase:phase+b.x,total}} : {})}));
+        }
         function buildBoxes(it, out, id) {
           const D = ITEMS[it.k],
-            A = hex(it.col || D.A),
+            // Unpainted short/tall wood slats use a shared finish when connected.
+            A = hex((!D.nocol && !THEME_ONLY.has(it.k) && it.col) || (JOIN_FAMILY[it.k]==="slat" && (activeJoins||joinGroups(St.items)).has(it.id) ? ITEMS.slatpartition.A : D.A)),
             P = placeOf(it),
             on = D.tog ? it.on : true,
             pat = patOf(it);
-          if (it.lc && D.li) P.lc = hex(it.lc);
-          if (it.cm) P.cm = it.cm;
+          if (it.lc && D.li && it.k!=="fairy") P.lc = hex(it.lc);
+          if (!D.nocol && !THEME_ONLY.has(it.k) && (it.cm || D.defaultCM)) {
+            P.cm = {...D.defaultCM, ...Object.fromEntries(partsOf(it.k).filter(p=>it.cm?.[p]).map(p=>[p,it.cm[p]]))};
+            // Preserve the material's shading when recoloring the garment.
+            const denim = (it.k === "clothespile" || it.k === "clothchair") && P.cm["#6c8db5"];
+            if (denim) {
+              P.cm["#4f6f99"] = dyeHex(mul(hex(denim),.78));
+              P.cm["#a9c0dc"] = dyeHex(lerp(hex(denim),K.white,.4));
+            }
+            if (it.k === "dryingrack" && P.cm["#ffb0c4"]) P.cm["#e08aa0"] = dyeHex(mul(hex(P.cm["#ffb0c4"]),.83));
+          }
           const pg = PING.get(it.id);
           if (pg != null && TIME - pg < 260) P.z += Math.sin(((TIME - pg) / 260) * Math.PI) * 1.6;
-          const pc = D.pals ? (D.pals[it.pal] || Object.values(D.pals)[0]).c : null,
-            tp = D.multi && it.th && THEMES[it.th] ? THEMES[it.th].c : null,
+          const pc = D.pals ? D.pals[presetKey(it,D)].c : null,
+            tp = !D.nocol && D.multi ? themesFor(it)[themeKey(it)].c : null,
             ord = tp ? pord(it.k) : null;
           if (tp) P.palK = tp;
           const tall = D.L === "c" && DUP && !flOf(it);
-          for (let b of D.b(on, it)) {
+          for (let b of connectedModel(it,on)) {
             // 복층 방 1층의 천장 조명은 높아진 천장까지 줄을 늘인다
             if (tall && b.z + b.h >= 70) b = { ...b, h: b.h + WH2 - WH1 };
             if (pc && typeof b.c === "string" && /^P\d$/.test(b.c)) b = { ...b, c: pc[+b.c[1]] };
-            if (tp && !b.keep && typeof b.c === "string" && b.c[0] === "#") {
-              const j = ord.indexOf(b.c.toLowerCase());
-              if (j >= 0) b = { ...b, c: tp[j % tp.length] };
+            // Telephone keypad stays ivory, even if the sign is painted.
+            if (it.k === "phonebooth" && b.c === "#f4efe6" && b.t !== "phoneSign") b = {...b,keep:1};
+            if (tp && !b.keep && typeof b.c === "string" && (b.c[0] === "#" || (THEME_ONLY.has(it.k) && b.c === "A"))) {
+              const j = ord.indexOf(b.c === "A" ? "A" : b.c.toLowerCase());
+              if (j >= 0 && (it.k !== "shelfpartition" || b.z < 10) && (it.k !== "laddershelf" || b.c !== "#f4efe6" || Math.abs(b.z - 17.4) < .01)) {
+                let c=tp[j % tp.length];
+                if(it.k==="fairy" && b.e && on && !RM && Math.floor(TIME/500+(b.x-3)/8*1.7)%5===0) c=dyeHex(lerp(hex(c),K.white,.32));
+                b={...b,c};
+              }
             }
             out.push(wbox(b, P, A, id, on, pat));
           }
@@ -9978,7 +11171,7 @@
               r,
               f,
               s,
-              c: it.lc ? hex(it.lc) : c === "A" ? lerp(A, K.white, 0.15) : c === "M" ? lerp(A, K.warm, 0.5) : hex(c),
+              c: it.k === "fairy" ? hex(LIGHT_THEMES[themeKey(it)].c[Math.max(0,FC.indexOf(c))]) : it.lc ? hex(it.lc) : c === "A" ? lerp(A, K.white, 0.15) : c === "M" ? lerp(A, K.warm, 0.5) : hex(c),
             };
           });
         }
@@ -10716,7 +11909,6 @@
               ["barstool", 8, 1],
               ["mahjong", 6.5, 3],
               ["chesstable", 1, 6],
-              ["foosball", 3.5, 6],
               ["chesterfield", 7, 8],
               ["floorlamp", 9, 6],
               ["aquacolumn", 0, 9],
@@ -10832,7 +12024,7 @@
                   pal: typeof i.pal === "string" ? i.pal : null,
                   cm:
                     i.cm && typeof i.cm === "object"
-                      ? Object.fromEntries(Object.entries(i.cm).filter(([a, b]) => /^#[0-9a-f]{6}$/i.test(a) && /^#[0-9a-f]{6}$/i.test(b)))
+                      ? Object.fromEntries(Object.entries(i.cm).filter(([a, b]) => (a === "a" || a === "L" || /^#[0-9a-f]{6}$/i.test(a)) && /^#[0-9a-f]{6}$/i.test(b)))
                       : undefined,
                 }));
               const sz = (v) => (Number.isInteger(v) && v >= 6 && v <= 14 ? v : 10);
@@ -11055,6 +12247,9 @@
             if (it.gx < dk.x0 || it.gy < dk.y0 || it.gx + f.w > dk.x1 || it.gy + f.h > dk.y1) return { ok: false };
           }
           const F = fp4(it);
+          if (JOIN.has(it.k) && St.items.some(o => !ign.has(o.id) && JOIN_FAMILY[o.k] === JOIN_FAMILY[it.k] && flOf(o) === fl &&
+            (D.L === "w" ? o.side === it.side : joinRot(it,o) && (o.z || 0) === base) &&
+            (inside(F, fp4(o)) || inside(fp4(o), F)) && !joinPair({...it,z:base,host:null},o))) return {ok:false};
           if (DUP && !fl) {
             // 1층: 천장 조명은 2층 밑에 못 달고, 계단·기둥 자리는 비워 둔다
             if (D.L === "c" && ov(F, deckH())) return { ok: false };
@@ -11067,11 +12262,11 @@
                 if (ign.has(o.id) || flOf(o) !== fl) return false;
                 const E = ITEMS[o.k];
                 if (E.L !== D.L || (D.L === "w" && o.side !== it.side) || !ov(F, fp4(o))) return false;
-                return !((D.deco && (E.win || E.deco)) || (E.deco && (D.win || D.deco)));
+                return !joinPair(it,o) && !((D.deco && (E.win || E.deco)) || (E.deco && (D.win || D.deco)));
               }),
               host: null,
             };
-          const osA = St.items.filter((o) => !ign.has(o.id) && flOf(o) === fl && ITEMS[o.k].L === "f" && ov(F, fp4(o))),
+          const osA = St.items.filter((o) => !ign.has(o.id) && flOf(o) === fl && ITEMS[o.k].L === "f" && ov(F, fp4(o)) && !joinPair({...it,z:base,host:null},o)),
             onWin = (o) =>
               [...anc(o)].some((h) => {
                 const q = byId(h);
@@ -11353,7 +12548,10 @@
             late = [],
             vis = (it) => !DUP || lv === 1 || !flOf(it),
             dimS = DUP && lv === 1 ? new Set(St.items.filter((i) => !flOf(i)).map((i) => i.id)) : null;
+          activeJoins=joinGroups(St.items.filter(vis));
+          const joinEdges=activeJoins;
           for (const it of St.items) if (vis(it)) buildBoxes(it, mov.has(it.id) ? late : boxes, it.id);
+          activeJoins=null;
           boxes.push(...roomGl);
           const glassLast = (arr) => {
             const g = [];
@@ -11538,7 +12736,13 @@
                     break;
                   }
                   const qi = S.id[q];
-                  if (qi !== id && (!S.nrm[q] || S.dep[q] < S.dep[i] - 0.5)) {
+                  const jg=joinEdges.get(id), sameJoin=jg&&jg===joinEdges.get(qi);
+                  // 연속 표면의 ID 경계만 생략하고 실제 높이/깊이 단차는 그린다.
+                  // A connected group is a single visual object, but keeps individual picking IDs.
+                  // Preserve outer silhouettes against the room, never draw a black divider
+                  // solely because the neighbouring pixel belongs to a different module.
+                  const continuous=sameJoin&&S.nrm[q];
+                  if (qi !== id && !continuous && (!S.nrm[q] || S.dep[q] < S.dep[i] - 0.5)) {
                     edge = true;
                     break;
                   }
@@ -11602,6 +12806,7 @@
           if (
             dirty ||
             t < pingUntil ||
+            t < gameUntil ||
             (walk && t - (loop.l || 0) > 66) ||
             (fl && t - (loop.l || 0) > 110) ||
             (skyAnim && t - (loop.l || 0) > 90)
@@ -11970,6 +13175,7 @@
           const d = drag;
           end();
           if (d && !d.sn && ITEMS[d.it.k].ins) playIns(d.it);
+          else if (d && !d.sn && ITEMS[d.it.k].game) playGame(d.it);
         });
         cv.addEventListener("pointercancel", end);
         cv.addEventListener("pointerleave", () => {
@@ -12089,12 +13295,12 @@
             it.pal = c || null;
             save();
           }
-          if (it && a === "th") {
+          if (it && a === "th" && ITEMS[it.k].multi && !ITEMS[it.k].nocol) {
             snap();
             it.th = c || null;
             save();
           }
-          if (it && a === "col") {
+          if (it && a === "col" && !ITEMS[it.k].nocol && !THEME_ONLY.has(it.k) && !ITEMS[it.k].pals) {
             snap();
             const sl = slot.id === it.id && (slot.s === "A" || partsOf(it.k).includes(slot.s)) ? slot.s : "A";
             if (sl === "A") it.col = c || null;
@@ -12111,7 +13317,7 @@
             it.pat = c;
             save();
           }
-          if (it && a === "lc") {
+          if (it && a === "lc" && it.k !== "fairy") {
             snap();
             it.lc = c || null;
             save();
@@ -12188,7 +13394,7 @@
             bar.innerHTML = `<div class="r1"><span>놓는 중 <b>${ITEMS[tool].n}</b></span><span class="sp"></span>${ITEMS[tool].L === "w" || ITEMS[tool].pet ? "" : '<button data-a="trot">돌리기</button>'}<button data-a="stop">그만 놓기</button></div><span class="hint">방을 한 번 누르면 놓여요 · R 돌리기 · 오른쪽 클릭이나 Esc로 그만 · Shift+클릭으로 여러 개</span>`;
           else if (it) {
             const D = ITEMS[it.k];
-            bar.innerHTML = `<div class="r1"><b>${D.n}</b><span class="sp"></span>${D.tog ? `<button data-a="tog" class="${it.on ? "" : "hot"}">${togLabel(D, it.on)}</button>` : ""}${D.L !== "w" && !D.pet ? '<button data-a="rot">돌리기</button>' : ""}${D.mir ? '<button data-a="mir">방향 바꾸기</button>' : ""}${D.ins ? '<button data-a="play">♪ 연주</button>' : ""}<button data-a="del">치우기</button></div>${D.win ? `<div class="cols seg"><span>창틀</span>${["없음", "얇게", "넓게"].map((n, i) => `<button data-a="sill" data-c="${i}" aria-pressed="${(it.sill ?? 2) === i}">${n}</button>`).join("")}<small>넓게 하면 물건을 올릴 수 있어요</small></div>` : ""}${D.deck ? '<span class="hint">위에도 아래에도 물건을 둘 수 있어요. 아래에는 책상·침대처럼 낮은 가구만 들어가요 (책장·옷장은 너무 커요). 위에 놓으려면 마루를, 아래에 놓으려면 바닥을 누르세요.</span>' : ""}${D.L === "r" || D.rs || D.deck ? `<div class="cols sz"><span>크기</span><button data-a="rw-" aria-label="가로 줄이기">−</button><b>${D.rs ? "너비" : "가로"} ${it.rw || D.w}</b><button data-a="rw+" aria-label="가로 늘리기">+</button>${D.L === "r" || D.deck ? `<span class="gap"></span><button data-a="rd-" aria-label="세로 줄이기">−</button><b>세로 ${it.rd || D.d}</b><button data-a="rd+" aria-label="세로 늘리기">+</button>` : ""}</div>` : ""}${
+            bar.innerHTML = `<div class="r1"><b>${D.n}</b><span class="sp"></span>${D.tog ? `<button data-a="tog" class="${it.on ? "" : "hot"}">${togLabel(D, it.on)}</button>` : ""}${D.L !== "w" && !D.pet ? '<button data-a="rot">돌리기</button>' : ""}${D.mir ? '<button data-a="mir">방향 바꾸기</button>' : ""}${D.ins ? '<button data-a="play">♪ 연주</button>' : ""}<button data-a="del">치우기</button></div>${D.win ? `<div class="cols seg"><span>창틀</span>${["없음", "얇게", "넓게"].map((n, i) => `<button data-a="sill" data-c="${i}" aria-pressed="${(it.sill ?? 2) === i}">${n}</button>`).join("")}<small>넓게 하면 물건을 올릴 수 있어요</small></div>` : ""}${JOIN.has(it.k) ? '<span class="hint">같은 종류 또는 같은 계열 가구를 같은 방향·바닥 높이로 맞닿거나 일부 겹치게 놓으면 연결돼요.</span>' : ""}${D.deck ? '<span class="hint">위에도 아래에도 물건을 둘 수 있어요. 아래에는 책상·침대처럼 낮은 가구만 들어가요 (책장·옷장은 너무 커요). 위에 놓으려면 마루를, 아래에 놓으려면 바닥을 누르세요.</span>' : ""}${D.L === "r" || D.rs || D.deck ? `<div class="cols sz"><span>크기</span><button data-a="rw-" aria-label="가로 줄이기">−</button><b>${D.rs ? "너비" : "가로"} ${it.rw || D.w}</b><button data-a="rw+" aria-label="가로 늘리기">+</button>${D.L === "r" || D.deck ? `<span class="gap"></span><button data-a="rd-" aria-label="세로 줄이기">−</button><b>세로 ${it.rd || D.d}</b><button data-a="rd+" aria-label="세로 늘리기">+</button>` : ""}</div>` : ""}${
               D.pet
                 ? `<div class="cols"><span>${D.pet === "robot" ? "색" : "무늬"}</span>${Object.entries(PATS[D.pet])
                     .map(
@@ -12200,33 +13406,36 @@
                   ? `<div class="cols"><span>색 조합</span>${Object.entries(D.pals)
                       .map(
                         ([k, p], i) =>
-                          `<button class="pat" data-a="pal" data-c="${k}" aria-pressed="${(it.pal || Object.keys(D.pals)[0]) === k}"><i style="background:linear-gradient(135deg,${p.c[0]} 0 33%,${p.c[1]} 33% 66%,${p.c[2]} 66%)"></i>${p.n}</button>`,
+                          `<button class="pat" data-a="pal" data-c="${k}" aria-pressed="${presetKey(it,D) === k}"><i style="background:${palettePreview(p.c)}"></i>${p.n}</button>`,
                       )
                       .join("")}</div>`
-                  : `${(() => {
+                  : D.nocol
+                    ? '<span class="hint">고유 색상 · 염색할 수 없는 가구예요.</span>'
+                    : `${THEME_ONLY.has(it.k) ? "" : (() => {
                       const ps = partsOf(it.k),
                         sl = slot.id === it.id && (slot.s === "A" || ps.includes(slot.s)) ? slot.s : "A",
                         curA = it.col || D.A,
-                        cv = sl === "A" ? it.col || "" : (it.cm || {})[sl] || "";
+                        cv = sl === "A" ? curA : partCol(it, sl),
+                        isDefault = sl === "A" ? !it.col : !(it.cm || {})[sl];
                       return (
                         (ps.length
                           ? `<div class="cols parts"><span>고르기</span><button data-a="slot" data-c="A" aria-pressed="${sl === "A"}"><i style="background:${curA}"></i>${D.pn ? D.pn[0] : "주 색"}</button>${ps.map((p, i) => `<button data-a="slot" data-c="${p}" aria-pressed="${sl === p}"><i style="background:${partCol(it, p)}"></i>${D.pn ? D.pn[1] : "보조 색"}</button>`).join("")}</div>`
                           : "") +
-                        `<div class="cols"><span>${D.multi ? (D.pn ? D.pn[0] : "주 색") : "색"}</span>${COLS.map((c) => `<button data-a="col" data-c="${c}" style="background:${c}" aria-label="색 ${c}" aria-pressed="${cv === c}"></button>`).join("")}<button class="reset" data-a="col" data-c="" aria-pressed="${!cv}">원래 색</button></div>`
+                        `<div class="cols dye-palette"><span>${sl === "A" ? D.pn[0] : D.pn[1] || "색"}</span>${COLS.map((c) => `<button data-a="col" data-c="${c}" style="background:${c}" aria-label="${COLOR_NAMES[c] || c}" title="${COLOR_NAMES[c] || c} · ${c}" aria-pressed="${cv === c}"></button>`).join("")}<button class="reset" data-a="col" data-c="" aria-pressed="${isDefault}">원래 색</button></div>`
                       );
                     })()}${
                       D.multi
-                        ? `<div class="cols parts"><span>${D.pn ? D.pn[1] : "보조 색"}</span><button data-a="th" data-c="" aria-pressed="${!it.th}"><i style="background:${thPrev(null, it)}"></i>원래</button>${Object.entries(
-                            THEMES,
+                        ? `<div class="cols parts"><span>${THEME_ONLY.has(it.k) ? "색 조합" : (D.pn?.[1] || "장식") + " 색 조합"}</span>${Object.entries(
+                            themesFor(it),
                           )
                             .map(
                               ([k, t]) =>
-                                `<button data-a="th" data-c="${k}" aria-pressed="${it.th === k}"><i style="background:${thPrev(k, it)}"></i>${t.n}</button>`,
+                                `<button data-a="th" data-c="${k}" aria-pressed="${themeKey(it) === k}"><i style="background:${palettePreview(t.c)}"></i>${t.n}</button>`,
                             )
                             .join("")}</div>`
                         : ""
                     }`
-            }${D.li ? `<div class="cols"><span>빛 색</span>${LCOLS.map(([c, n]) => `<button data-a="lc" data-c="${c}" style="background:${c}" aria-label="${n}" title="${n}" aria-pressed="${(it.lc || "") === c}"></button>`).join("")}<button class="reset" data-a="lc" data-c="" aria-pressed="${!it.lc}">기본</button></div>` : ""}`;
+            }${D.li && it.k!=="fairy" ? `<div class="cols"><span>빛 색</span>${LCOLS.map(([c, n]) => `<button data-a="lc" data-c="${c}" style="background:${c}" aria-label="${n}" title="${n}" aria-pressed="${(it.lc || "") === c}"></button>`).join("")}<button class="reset" data-a="lc" data-c="" aria-pressed="${!it.lc}">기본</button></div>` : ""}`;
           } else
             bar.innerHTML = DUP
               ? `<span class="hint">지금 <b>${lv ? "2층" : "1층"}</b>을 꾸미는 중이에요. ${lv ? "2층 바닥과 그 옆 벽에 물건을 놓을 수 있어요. 어둡게 보이는 1층 물건은 1층 보기에서 고를 수 있어요." : "2층은 잠시 숨겨 두었어요. 계단과 기둥 자리는 비워 두세요."}</span>`
@@ -12271,7 +13480,10 @@
             h = Math.ceil(d - c) + 3,
             S2 = surf(w, h, -a + 1, -c + 1);
           clear(S2);
-          for (const q of bs) rast(S2, q);
+          if (k === "aquatable") {
+            const glass = bs.filter(q => q.gl).sort((p,q)=>p.x0+p.y0+p.z0-q.x0-q.y0-q.z0);
+            for (const q of [...bs.filter(q=>!q.gl), ...glass]) rast(S2,q);
+          } else for (const q of bs) rast(S2, q);
           const cnv = document.createElement("canvas");
           cnv.width = w;
           cnv.height = h;
@@ -12378,7 +13590,7 @@
             colEl.innerHTML =
               "<span>색</span>" +
               cols
-                .map((c) => `<button data-c="${c}" style="background:${c}" aria-label="색 ${c}" aria-pressed="${cur === c}"></button>`)
+                .map((c) => `<button data-c="${c}" style="background:${c}" aria-label="${COLOR_NAMES[c] || c}" title="${COLOR_NAMES[c] || c} · ${c}" aria-pressed="${cur === c}"></button>`)
                 .join("") +
               `<button class="reset" data-c="" aria-pressed="${!cur}">기본</button>`;
             colEl.onclick = (e) => {
